@@ -491,16 +491,41 @@ const server = http.createServer(async (req, res) => {
 
           res.writeHead(result.statusCode || 200, outHeaders);
 
-          // ── Streaming: strip model name mismatch from SSE chunks ──
+          // ── Streaming: fix model name via JSON parsing (not regex) ──
           if (modelIsAuto) {
             const { Transform } = require("stream");
+            let buffer = "";
             const modelFix = new Transform({
               transform(chunk: Buffer, _enc: string, cb: Function) {
-                // Replace upstream model name with original in SSE data lines
-                let str = chunk.toString();
-                str = str.replace(/"model":"[^"]+"/g, `"model":"${originalModel}"`);
-                str = str.replace(/"reasoning_content":"[^"]*?"/g, '');
-                cb(null, str);
+                buffer += chunk.toString();
+                // Process complete SSE lines only
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || ""; // keep incomplete last line
+
+                for (const line of lines) {
+                  if (line.startsWith("data: ")) {
+                    try {
+                      const json = JSON.parse(line.slice(6));
+                      json.model = originalModel;
+                      // Strip reasoning from delta
+                      if (json.choices) {
+                        for (const c of json.choices) {
+                          if (c.delta) delete c.delta.reasoning_content;
+                        }
+                      }
+                      this.push("data: " + JSON.stringify(json) + "\n");
+                    } catch {
+                      this.push(line + "\n"); // pass through unmodified
+                    }
+                  } else {
+                    this.push(line + "\n");
+                  }
+                }
+                cb();
+              },
+              flush(cb: Function) {
+                if (buffer) this.push(buffer);
+                cb();
               }
             });
             result.streamingRes.pipe(modelFix).pipe(res);
