@@ -121,6 +121,9 @@ async function executeProviderRequest(
   streamingRes?: http.IncomingMessage;
 }> {
   const providerConfig = CONFIG.providers[providerKey];
+  if (!providerConfig) {
+    return { success: false, error: `Provider "${providerKey}" not configured` };
+  }
   const apiKey = process.env[providerConfig.keyEnv];
 
   if (!apiKey) {
