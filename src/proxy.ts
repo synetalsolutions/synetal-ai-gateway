@@ -34,7 +34,7 @@ import {
 import { globalCache } from "./cache";
 import { detectPromptType, routePrompt, logRouting } from "./smart-router";
 import { globalCostTracker } from "./cost-tracker";
-import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
+import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, isUserTurn, PreprocessResult } from "./preprocessor";
 
 const CONFIG = loadConfig();
 const headroomClient = new HeadroomClient(CONFIG.headroom);
@@ -371,16 +371,25 @@ const server = http.createServer(async (req, res) => {
         // ── AI Gateway: Prompt Preprocessor ──────────────────────────────
         // Optimizes raw/vague/hindi dev prompts using deepseek-flash before main agent sees them.
         // Auto-active for "synetal-ai" model, or via X-Preprocess: true header.
+        // IMPORTANT: only runs on a genuine user turn — never on agent tool-loop
+        // interactions, so it adds at most ONE extra call per human message.
         const usePreprocess = req.headers["x-preprocess"] === "true" || modelIsAuto;
         let preprocessResult: PreprocessResult | null = null;
-        if (isPreprocessEnabled() && usePreprocess && Array.isArray(payload.messages)) {
+        if (
+          isPreprocessEnabled() &&
+          usePreprocess &&
+          Array.isArray(payload.messages) &&
+          isUserTurn(payload.messages)
+        ) {
           preprocessResult = await optimizePrompt(payload.messages);
           if (preprocessResult.optimized) {
             payload = applyOptimizedPrompt(payload, preprocessResult);
-            log("info", `[${requestId}] Preprocessor: optimized (${preprocessResult.latencyMs}ms)`);
+            log("info", `[${requestId}] Preprocessor: optimized user input (${preprocessResult.latencyMs}ms)`);
           } else if (preprocessResult.skipped) {
             log("info", `[${requestId}] Preprocessor: skipped (${preprocessResult.skipReason})`);
           }
+        } else if (isPreprocessEnabled() && usePreprocess && Array.isArray(payload.messages)) {
+          log("info", `[${requestId}] Preprocessor: skipped (agent interaction, not user input)`);
         }
 
         // ── AI Gateway: Smart Auto-Routing ───────────────────────────────

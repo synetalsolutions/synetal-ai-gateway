@@ -42,30 +42,87 @@ export function isPreprocessEnabled(): boolean {
   return PREPROCESS_ENABLED;
 }
 
+type Msg = { role: string; content?: unknown };
+
+interface LastUserMessage {
+  index: number;
+  text: string;
+  hasImage: boolean;
+}
+
 /**
- * Determine if a prompt needs preprocessing (vague/short/mixed language).
+ * Extract the most recent user message and its plain text.
+ * Returns null if that message is actually a tool result disguised as a
+ * user message (Anthropic-style tool_result blocks) — those are agent turns.
+ */
+function getLastUserMessage(messages: Msg[]): LastUserMessage | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+
+    if (typeof m.content === "string") {
+      return { index: i, text: m.content, hasImage: false };
+    }
+    if (Array.isArray(m.content)) {
+      // A "user" message carrying tool_result/tool_use parts is an agent loop step
+      const hasToolResult = m.content.some(
+        (p: any) => p?.type === "tool_result" || p?.type === "tool_use"
+      );
+      if (hasToolResult) return null;
+
+      const text = m.content
+        .filter((p: any) => p?.type === "text")
+        .map((p: any) => p.text || "")
+        .join(" ");
+      const hasImage = m.content.some((p: any) => p?.type === "image_url");
+      return { index: i, text, hasImage };
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Decide whether this request is a genuine user-initiated turn (a human just
+ * typed something) versus an agent interaction (tool result / agentic loop
+ * continuation). The preprocessor must ONLY run on real user input — never on
+ * the agent's internal back-and-forth.
+ */
+export function isUserTurn(messages: Msg[]): boolean {
+  if (!Array.isArray(messages) || messages.length === 0) return false;
+
+  const last = messages[messages.length - 1];
+
+  // Agent loop signals: last message is a tool result or the assistant's own
+  // continuation. Only a trailing "user" message means the human just spoke.
+  if (last.role !== "user") return false;
+
+  // OpenAI-style tool results come back as role "tool"; if any tool message
+  // appears AFTER the last real user text, we're still mid agent loop.
+  if (Array.isArray(last.content)) {
+    const hasToolResult = last.content.some(
+      (p: any) => p?.type === "tool_result" || p?.type === "tool_use"
+    );
+    if (hasToolResult) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Determine if the user's prompt needs preprocessing (vague/short/mixed language).
+ * Operates ONLY on the latest user message text — not the whole conversation —
+ * so the big system prompt and history never skew the decision.
  * For image+text: evaluates only the text portion, image is always preserved.
  */
-function needsOptimization(messages: Array<{ role: string; content?: unknown }>): boolean {
-  // Extract text-only from all messages (including multimodal)
-  const text = messages.map((m) => {
-    if (typeof m.content === "string") return m.content;
-    if (Array.isArray(m.content)) {
-      return m.content.filter((p: any) => p.type === "text").map((p: any) => p.text || "").join(" ");
-    }
-    return "";
-  }).join(" ");
+function needsOptimization(text: string, hasImage: boolean): boolean {
+  const trimmed = text.trim();
 
-  // Check if has image — if so, only optimize if text itself is vague
-  const hasImage = messages.some((m) => {
-    if (Array.isArray(m.content)) {
-      return m.content.some((part: any) => part.type === "image_url");
-    }
-    return false;
-  });
+  // Nothing to optimize
+  if (!trimmed) return false;
 
   // Skip if very short (just "hi", "yes", "ok", "continue", "thanks")
-  if (/^(hi|hello|hey|yes|no|ok|okay|thanks|thank you|continue|go on|next|bye)[.!]*$/i.test(text.trim())) {
+  if (/^(hi|hello|hey|yes|no|ok|okay|thanks|thank you|continue|go on|next|bye)[.!]*$/i.test(trimmed)) {
     return false;
   }
 
@@ -102,25 +159,32 @@ export async function optimizePrompt(
   messages: Array<{ role: string; content?: unknown }>
 ): Promise<PreprocessResult> {
   const start = Date.now();
-  const originalText = messages.map((m) => {
-    if (typeof m.content === "string") return m.content;
-    if (Array.isArray(m.content)) {
-      return m.content.filter((p: any) => p.type === "text").map((p: any) => p.text || "").join(" ");
-    }
-    return "";
-  }).join("\n");
 
-  // Quick check: skip if not needed
-  if (!needsOptimization(messages)) {
-    return {
-      optimized: false,
-      originalPrompt: originalText,
-      optimizedPrompt: originalText,
-      latencyMs: 0,
-      modelUsed: PREPROCESS_MODEL,
-      skipped: true,
-      skipReason: "prompt already clear",
-    };
+  const skip = (reason: string, original = ""): PreprocessResult => ({
+    optimized: false,
+    originalPrompt: original,
+    optimizedPrompt: original,
+    latencyMs: 0,
+    modelUsed: PREPROCESS_MODEL,
+    skipped: true,
+    skipReason: reason,
+  });
+
+  // Only act on a genuine user turn — never on agent loop / tool interactions.
+  if (!isUserTurn(messages)) {
+    return skip("agent interaction (not user input)");
+  }
+
+  const lastUser = getLastUserMessage(messages);
+  if (!lastUser) {
+    return skip("no user message");
+  }
+
+  const originalText = lastUser.text;
+
+  // Quick check: skip if not needed (evaluated on the user prompt only)
+  if (!needsOptimization(originalText, lastUser.hasImage)) {
+    return skip("prompt already clear", originalText);
   }
 
   const apiKey = process.env.DEEPSEEK_API_KEY;
