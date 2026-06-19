@@ -308,10 +308,6 @@ const server = http.createServer(async (req, res) => {
           ...stats,
           latencySummary,
           cache: globalCache.getStats(),
-          rateLimit: {
-            enabled: false,
-            note: "Rate limiting disabled",
-          },
         },
         null,
         2
@@ -505,35 +501,19 @@ const server = http.createServer(async (req, res) => {
           try {
             const parsed = JSON.parse(result.body);
 
-            // ── Strip reasoning_content: users only need final answer, not model's thought process ──
+            // ── Clean response: strip everything Cursor might interpret as rate limit ──
+            delete parsed.usage;                          // Cursor tracks tokens from usage
+            delete parsed.system_fingerprint;             // Clean response
             if (Array.isArray(parsed.choices)) {
               for (const choice of parsed.choices) {
                 if (choice.message) {
-                  delete choice.message.reasoning_content;
+                  delete choice.message.reasoning_content; // Strip reasoning
                 }
               }
             }
+            // Don't inject _proxy metadata — Cursor may parse it
 
-            if (compressionResult?.compressed) {
-              parsed._headroom = {
-                request_id: requestId,
-                tokens_before: compressionResult.tokensBefore,
-                tokens_after: compressionResult.tokensAfter,
-                tokens_saved: compressionResult.tokensSaved,
-                compression_ratio: compressionResult.compressionRatio,
-                transforms: compressionResult.transformsApplied,
-              };
-            }
-            parsed._proxy = {
-              provider: result.provider,
-              request_id: requestId,
-              attempts: result.attempts.map((a) => ({
-                provider: a.provider,
-                success: a.success,
-                latency_ms: a.latencyMs,
-                status_code: a.statusCode,
-              })),
-            };
+            // ── Don't inject _proxy metadata — Cursor may misinterpret it ──
             responseBody = JSON.stringify(parsed);
           } catch {
             // If body isn't valid JSON, return as-is
