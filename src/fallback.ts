@@ -101,12 +101,11 @@ export class FallbackEngine {
    */
   isRetryableError(statusCode?: number, errorMessage?: string): boolean {
     if (statusCode) {
-      // 429 = rate limit, 502/503/504 = gateway errors, 500 = server error
-      if ([429, 500, 502, 503, 504].includes(statusCode)) return true;
+      // 502/503/504 = gateway errors, 500 = server error
+      if ([500, 502, 503, 504].includes(statusCode)) return true;
     }
     if (errorMessage) {
       const retryablePatterns = [
-        "rate limit",
         "too many requests",
         "timeout",
         "econnreset",

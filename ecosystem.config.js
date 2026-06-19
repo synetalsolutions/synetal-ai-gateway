@@ -9,7 +9,6 @@ module.exports = {
         HEADROOM_ENABLED: 'false',
         PROXY_PORT: '3456',
         PROXY_API_KEY: 'REDACTED-PROXY-KEY',
-        RATE_LIMIT_RPM: '500',
         PREPROCESS_ENABLED: 'true',
         PREPROCESS_MODEL: 'deepseek-v4-flash'
       },

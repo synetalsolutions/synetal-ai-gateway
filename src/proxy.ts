@@ -363,10 +363,7 @@ const server = http.createServer(async (req, res) => {
           isStreaming: isStream,
         };
 
-        // ── AI Gateway: Rate Limiting (DISABLED) ─────────────────────────
-        const rateLimitKey = req.headers["authorization"] || `ip:${req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown"}`;
-        const rateLimit = { allowed: true, remaining: 9999, resetInMs: 0 };
-        const rateLimitStatus = { limit: 9999, remaining: 9999, resetInMs: 0 };
+        // ── AI Gateway: Rate Limiting (REMOVED) ──────────────────────────
 
         // "synetal-ai" or "auto" triggers smart routing & preprocessing
         const modelIsAuto = payload.model === "synetal-ai" || payload.model === "auto" || payload.model === "automatic" || !payload.model;
