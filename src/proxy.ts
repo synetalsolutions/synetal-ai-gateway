@@ -490,7 +490,23 @@ const server = http.createServer(async (req, res) => {
           outHeaders["x-provider"] = result.provider;
 
           res.writeHead(result.statusCode || 200, outHeaders);
-          result.streamingRes.pipe(res);
+
+          // ── Streaming: strip model name mismatch from SSE chunks ──
+          if (modelIsAuto) {
+            const { Transform } = require("stream");
+            const modelFix = new Transform({
+              transform(chunk: Buffer, _enc: string, cb: Function) {
+                // Replace upstream model name with original in SSE data lines
+                let str = chunk.toString();
+                str = str.replace(/"model":"[^"]+"/g, `"model":"${originalModel}"`);
+                str = str.replace(/"reasoning_content":"[^"]*?"/g, '');
+                cb(null, str);
+              }
+            });
+            result.streamingRes.pipe(modelFix).pipe(res);
+          } else {
+            result.streamingRes.pipe(res);
+          }
           return;
         }
 
