@@ -361,8 +361,9 @@ const server = http.createServer(async (req, res) => {
 
         // ── AI Gateway: Rate Limiting (REMOVED) ──────────────────────────
 
-        // "synetal-ai" or "auto" triggers smart routing & preprocessing
-        const modelIsAuto = payload.model === "synetal-ai" || payload.model === "auto" || payload.model === "automatic" || !payload.model;
+        // Multiple model aliases trigger smart routing + preprocessing
+        const smartModels = ["synetal-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-3.5-turbo"];
+        const modelIsAuto = smartModels.includes(payload.model) || !payload.model;
 
         // ── AI Gateway: Prompt Preprocessor ──────────────────────────────
         // Optimizes raw/vague/hindi dev prompts using deepseek-flash before main agent sees them.
