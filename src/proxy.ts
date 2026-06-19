@@ -383,6 +383,7 @@ const server = http.createServer(async (req, res) => {
         const autoRoute = req.headers["x-auto-route"] === "true" || modelIsAuto;
         const cacheBypass = req.headers["x-cache-bypass"] === "true";
         let routingDecision = null;
+        const originalModel = payload.model;  // Save original — restore in response
 
         let queue: ProviderKey[] = [];
 
@@ -414,7 +415,6 @@ const server = http.createServer(async (req, res) => {
             log("ok", `[${requestId}] Cache HIT for ${ctx.providerKey}/${payload.model}`);
             res.writeHead(cached.statusCode, {
               ...cached.headers,
-              "x-cache": "HIT",
               "x-request-id": requestId,
             });
             res.end(cached.response);
@@ -504,6 +504,10 @@ const server = http.createServer(async (req, res) => {
             // ── Clean response: strip everything Cursor might interpret as rate limit ──
             delete parsed.usage;                          // Cursor tracks tokens from usage
             delete parsed.system_fingerprint;             // Clean response
+            // Restore original model name — Cursor expects response model = request model
+            if (modelIsAuto) {
+              parsed.model = originalModel;
+            }
             if (Array.isArray(parsed.choices)) {
               for (const choice of parsed.choices) {
                 if (choice.message) {
@@ -511,9 +515,10 @@ const server = http.createServer(async (req, res) => {
                 }
               }
             }
-            // Don't inject _proxy metadata — Cursor may parse it
-
-            // ── Don't inject _proxy metadata — Cursor may misinterpret it ──
+            // ── Restore original model name ──
+            if (modelIsAuto) {
+              parsed.model = originalModel;
+            }
             responseBody = JSON.stringify(parsed);
           } catch {
             // If body isn't valid JSON, return as-is
@@ -521,9 +526,6 @@ const server = http.createServer(async (req, res) => {
 
           const outHeaders: Record<string, string> = {
             "Content-Type": "application/json",
-            "x-request-id": requestId,
-            "x-provider": result.provider,
-            "x-cache": "MISS",
           };
 
           if (compressionResult?.compressed) {
