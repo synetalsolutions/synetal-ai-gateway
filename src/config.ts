@@ -89,12 +89,23 @@ export function loadConfig(): ProxyConfig {
     xiaomi: buildProviderConfig("xiaomi"),
   };
 
+  // ── Filter out providers without API keys ──────────────────────────────
+  const activeProviders: Record<string, ProviderConfig> = {};
+  for (const [key, cfg] of Object.entries(providers)) {
+    const apiKey = process.env[cfg.keyEnv];
+    if (apiKey && apiKey.length > 10) {
+      activeProviders[key] = cfg;
+    } else {
+      console.log("[WARN] Skipping provider \"" + key + "\": no API key set (" + cfg.keyEnv + ")");
+    }
+  }
+
   // Fallback chain: try primary, then fallbacks in order
   const rawFallbackChain = env("FALLBACK_CHAIN", "deepseek,xiaomi,kimi")!;
   const fallbackChain = rawFallbackChain
     .split(",")
     .map((s) => s.trim() as ProviderKey)
-    .filter((k) => k in providers);
+    .filter((k) => k in activeProviders);
 
   // Load balance groups: model family -> provider list
   const loadBalanceGroups: Record<string, ProviderKey[]> = {
@@ -112,7 +123,7 @@ export function loadConfig(): ProxyConfig {
       loadBalanceGroups[group] = envVal
         .split(",")
         .map((s) => s.trim() as ProviderKey)
-        .filter((k) => k in providers);
+        .filter((k) => k in activeProviders);
     }
   }
 
@@ -120,8 +131,8 @@ export function loadConfig(): ProxyConfig {
     proxyPort: envInt("PROXY_PORT", DEFAULT_PROXY_PORT),
     headroom,
     defaultProvider,
-    providers,
-    fallbackChain,
+    providers: activeProviders as Record<ProviderKey, ProviderConfig>,
+    fallbackChain: fallbackChain.filter(k => k in activeProviders),
     loadBalanceGroups,
     maxRetries: envInt("MAX_RETRIES", DEFAULT_MAX_RETRIES),
     retryDelayMs: envInt("RETRY_DELAY_MS", DEFAULT_RETRY_DELAY_MS),

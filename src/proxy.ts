@@ -507,6 +507,16 @@ const server = http.createServer(async (req, res) => {
           let responseBody = result.body;
           try {
             const parsed = JSON.parse(result.body);
+
+            // ── Strip reasoning_content: users only need final answer, not model's thought process ──
+            if (Array.isArray(parsed.choices)) {
+              for (const choice of parsed.choices) {
+                if (choice.message) {
+                  delete choice.message.reasoning_content;
+                }
+              }
+            }
+
             if (compressionResult?.compressed) {
               parsed._headroom = {
                 request_id: requestId,

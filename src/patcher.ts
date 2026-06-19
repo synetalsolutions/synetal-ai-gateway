@@ -14,7 +14,7 @@ export function patchPayload(
 
   switch (providerKey) {
     case "kimi": {
-      // Force top_p
+      // Force top_p for Kimi models
       p.top_p = 0.95;
       // Backfill reasoning_content for assistant messages with tool_calls
       if (Array.isArray(p.messages)) {
@@ -47,7 +47,7 @@ export function patchPayload(
     }
 
     case "deepseek": {
-      // DeepSeek supports reasoning_effort natively
+      // DeepSeek — no token limits, cheap enough for max output
       break;
     }
 
