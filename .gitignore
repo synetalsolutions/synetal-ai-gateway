@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.log
+proxy_cache_dir/
+litellm.db
+/tmp/

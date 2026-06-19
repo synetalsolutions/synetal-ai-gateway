@@ -1,0 +1,115 @@
+# LiteLLM Configuration — AI Gateway
+# Docs: https://docs.litellm.ai/docs/
+
+model_list:
+  # ─── Kimi (Moonshot) ──────────────────────────────────────────────────────
+  - model_name: kimi-k2.6
+    litellm_params:
+      model: openai/kimi-k2.6
+      api_base: https://api.moonshot.ai/v1
+      api_key: os.environ/KIMI_API_KEY
+
+  - model_name: kimi-k2.5
+    litellm_params:
+      model: openai/kimi-k2.5
+      api_base: https://api.moonshot.ai/v1
+      api_key: os.environ/KIMI_API_KEY
+
+  - model_name: kimi-k2.7-code
+    litellm_params:
+      model: openai/kimi-k2.7-code
+      api_base: https://api.moonshot.ai/v1
+      api_key: os.environ/KIMI_API_KEY
+
+  - model_name: moonshot-v1-auto
+    litellm_params:
+      model: openai/moonshot-v1-auto
+      api_base: https://api.moonshot.ai/v1
+      api_key: os.environ/KIMI_API_KEY
+
+  # ─── DeepSeek ─────────────────────────────────────────────────────────────
+  - model_name: deepseek-v4-pro
+    litellm_params:
+      model: openai/deepseek-v4-pro
+      api_base: https://api.deepseek.com/v1
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+  - model_name: deepseek-v4-flash
+    litellm_params:
+      model: openai/deepseek-v4-flash
+      api_base: https://api.deepseek.com/v1
+      api_key: os.environ/DEEPSEEK_API_KEY
+
+  # ─── Xiaomi (MiMo) ────────────────────────────────────────────────────────
+  - model_name: mimo-v2.5-pro
+    litellm_params:
+      model: openai/mimo-v2.5-pro
+      api_base: https://token-plan-sgp.xiaomimimo.com/v1
+      api_key: os.environ/XIAOMI_API_KEY
+
+  - model_name: mimo-v2.5
+    litellm_params:
+      model: openai/mimo-v2.5
+      api_base: https://token-plan-sgp.xiaomimimo.com/v1
+      api_key: os.environ/XIAOMI_API_KEY
+
+  # ─── GLM (Zhipu) ──────────────────────────────────────────────────────────
+  - model_name: glm-5.2
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://api.z.ai/api/paas/v4
+      api_key: os.environ/GLM_API_KEY
+
+  # ─── OpenAI ───────────────────────────────────────────────────────────────
+  - model_name: gpt-4o
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ─── Anthropic ────────────────────────────────────────────────────────────
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+# ─── Router Settings ────────────────────────────────────────────────────────
+router_settings:
+  routing_strategy: simple-shuffle  # or latency-based, cost-based
+  # fallback to cheap model if expensive one fails
+  fallbacks:
+    - {"kimi-k2.6": ["deepseek-v4-pro", "moonshot-v1-auto"]}
+    - {"deepseek-v4-pro": ["deepseek-v4-flash", "mimo-v2.5-pro"]}
+
+# ─── Caching ────────────────────────────────────────────────────────────────
+litellm_settings:
+  cache: true
+  cache_params:
+    type: redis
+    host: redis
+    port: 6379
+    password: null
+  # Cache similar requests for 5 minutes
+  cache_ttl: 300
+
+# ─── Rate Limiting ──────────────────────────────────────────────────────────
+  rate_limit_settings:
+    - model: "*"
+      tpm: 100000   # tokens per minute
+      rpm: 120      # requests per minute
+
+# ─── Spend Tracking ─────────────────────────────────────────────────────────
+  success_callback: ["prometheus", "langfuse"]
+  failure_callback: ["prometheus"]
+
+# ─── General Settings ───────────────────────────────────────────────────────
+general_settings:
+  master_key: sk-litellm-master-key-change-me
+  database_url: postgresql://litellm:litellm@db:5432/litellm
+  store_model_in_db: true
+  proxy_batch_write_at: 60
+
+# ─── UI / Admin ─────────────────────────────────────────────────────────────
+ui:
+  enabled: true
+  username: admin
+  password: admin123  # change this!

@@ -1,0 +1,46 @@
+{
+  "name": "multi-model-headroom-proxy",
+  "version": "2.0.0",
+  "description": "Multi-model LLM proxy with Headroom context compression, fallback, load-balancing, and WebSocket streaming",
+  "main": "dist/proxy.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/proxy.js",
+    "start:headroom": "headroom proxy --port 8787 & npm start",
+    "dev": "ts-node src/proxy.ts",
+    "dev:headroom": "headroom proxy --port 8787 & npm run dev",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "llm",
+    "proxy",
+    "headroom",
+    "compression",
+    "openai",
+    "kimi",
+    "deepseek",
+    "glm",
+    "multi-model",
+    "fallback",
+    "load-balancing",
+    "websocket",
+    "streaming"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "headroom-ai": "^0.22.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
