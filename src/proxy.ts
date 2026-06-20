@@ -476,50 +476,60 @@ const server = http.createServer(async (req, res) => {
 
         // ── Streaming Response ────────────────────────────────────────────
         if (result.streamingRes) {
-          // Add compression metadata header
-          const outHeaders: Record<string, string | string[]> = { ...(result.headers as Record<string, string | string[]>) };
-          delete outHeaders["content-length"]; // streaming has no fixed length
-
-          if (compressionResult?.compressed) {
-            const meta = {
-              tokens_before: compressionResult.tokensBefore,
-              tokens_after: compressionResult.tokensAfter,
-              tokens_saved: compressionResult.tokensSaved,
-              compression_ratio: compressionResult.compressionRatio,
-              transforms: compressionResult.transformsApplied,
-            };
-            outHeaders["x-headroom-meta"] = Buffer.from(JSON.stringify(meta)).toString("base64");
-          }
-          outHeaders["x-request-id"] = requestId;
-          outHeaders["x-provider"] = result.provider;
+          // ── Build MINIMAL clean headers ──
+          // We deliberately DON'T copy upstream headers — anything Cursor sees
+          // here must be controlled. Some upstreams send x-ratelimit-* headers
+          // that Cursor may interpret as its own quota being exhausted.
+          const outHeaders: Record<string, string | string[]> = {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "x-request-id": requestId,
+          };
 
           res.writeHead(result.statusCode || 200, outHeaders);
 
-          // ── Streaming: fix model name via JSON parsing (not regex) ──
-          if (modelIsAuto) {
+          // ── Streaming: clean response (always run, model rename only if auto) ──
+          // Strips: system_fingerprint, usage, reasoning_content — anything Cursor
+          // might interpret as rate-limit / quota tracking.
+          {
             const { Transform } = require("stream");
             let buffer = "";
             const modelFix = new Transform({
               transform(chunk: Buffer, _enc: string, cb: Function) {
                 buffer += chunk.toString();
-                // Process complete SSE lines only
                 const lines = buffer.split("\n");
-                buffer = lines.pop() || ""; // keep incomplete last line
+                buffer = lines.pop() || "";
 
                 for (const line of lines) {
                   if (line.startsWith("data: ")) {
+                    const payload = line.slice(6);
+                    if (payload.trim() === "[DONE]") {
+                      this.push(line + "\n");
+                      continue;
+                    }
                     try {
-                      const json = JSON.parse(line.slice(6));
-                      json.model = originalModel;
-                      // Strip reasoning from delta
+                      const json = JSON.parse(payload);
+                      // Restore original model name only when smart-routing swapped it
+                      if (modelIsAuto) json.model = originalModel;
+                      // Strip everything Cursor may read as quota / rate-limit signals
+                      delete json.system_fingerprint;
+                      delete json.usage;
+                      delete (json as any)._proxy;
+                      delete (json as any)._headroom;
                       if (json.choices) {
                         for (const c of json.choices) {
-                          if (c.delta) delete c.delta.reasoning_content;
+                          if (c.delta) {
+                            delete c.delta.reasoning_content;
+                          }
+                          if (c.message) {
+                            delete c.message.reasoning_content;
+                          }
                         }
                       }
                       this.push("data: " + JSON.stringify(json) + "\n");
                     } catch {
-                      this.push(line + "\n"); // pass through unmodified
+                      this.push(line + "\n");
                     }
                   } else {
                     this.push(line + "\n");
@@ -533,8 +543,6 @@ const server = http.createServer(async (req, res) => {
               }
             });
             result.streamingRes.pipe(modelFix).pipe(res);
-          } else {
-            result.streamingRes.pipe(res);
           }
           return;
         }
@@ -569,18 +577,10 @@ const server = http.createServer(async (req, res) => {
             // If body isn't valid JSON, return as-is
           }
 
+          // ── Minimal clean headers — no upstream passthrough ──
           const outHeaders: Record<string, string> = {
             "Content-Type": "application/json",
           };
-
-          if (compressionResult?.compressed) {
-            const meta = {
-              tokens_before: compressionResult.tokensBefore,
-              tokens_after: compressionResult.tokensAfter,
-              tokens_saved: compressionResult.tokensSaved,
-            };
-            outHeaders["x-headroom-meta"] = Buffer.from(JSON.stringify(meta)).toString("base64");
-          }
 
           // Store in cache
           if (!cacheBypass && !isStream) {
@@ -941,7 +941,7 @@ server.listen(CONFIG.proxyPort, "0.0.0.0", () => {
   log("info", `WebSocket endpoint: ws://0.0.0.0:${CONFIG.proxyPort}/ws`);
   log("info", `Headroom compression: ${CONFIG.headroom.enabled ? "ENABLED" : "DISABLED"}`);
   if (CONFIG.headroom.enabled) {
-    log("info", `  → Headroom proxy: ${CONFIG.headroom.baseUrl}`);
+    log("info", `  → Headroom: SDK direct (no HTTP server)`);
     log("info", `  → Fallback on error: ${CONFIG.headroom.fallback}`);
   }
   log("info", `Supported providers: ${Object.keys(CONFIG.providers).join(", ")}`);
