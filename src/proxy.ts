@@ -342,6 +342,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ─── OpenAI-compatible Models List ──────────────────────────────────────
+  // Cursor (and other OpenAI-compatible clients) call GET /v1/models at
+  // startup to validate the endpoint. If this 404s or errors, Cursor shows
+  // "User API Key Rate limit exceeded" — so we MUST return a valid list.
+  if ((req.url === "/v1/models" || req.url === "/models") && req.method === "GET") {
+    const now = Math.floor(Date.now() / 1000);
+    const models = [
+      "synetal-ai",
+      "auto",
+      "gpt-4",
+      "gpt-4o",
+      "gpt-4o-mini",
+      "gpt-4-turbo",
+      "gpt-3.5-turbo",
+      "kimi-k2.7-code",
+      "kimi-k2.6",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash",
+      "deepseek-chat",
+      "mimo-v2.5-pro",
+    ].map((id) => ({
+      id,
+      object: "model",
+      created: now,
+      owned_by: "synetal",
+    }));
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ object: "list", data: models }));
+    return;
+  }
+
   // ─── Chat Completions with Fallback ──────────────────────────────────────
   if (req.url === "/v1/chat/completions" && req.method === "POST") {
     let body = "";
@@ -369,9 +400,11 @@ const server = http.createServer(async (req, res) => {
         const modelIsAuto = smartModels.includes(payload.model) || !payload.model;
 
         // ── AI Gateway: Prompt Preprocessor ──────────────────────────────
-        // Optimizes raw/vague/hindi dev prompts using deepseek-flash before main agent sees them.
-        // Auto-active for "synetal-ai" model, or via X-Preprocess: true header.
-        const usePreprocess = req.headers["x-preprocess"] === "true" || modelIsAuto;
+        // Optimizes raw/vague/hindi dev prompts using deepseek-flash.
+        // DISABLED for "smart auto" models by default — the preprocessor was
+        // corrupting clear prompts (e.g. "what is 2+2" → "Answer: 4", making
+        // the main model reply "what question?"). Now opt-in via header only.
+        const usePreprocess = req.headers["x-preprocess"] === "true";
         let preprocessResult: PreprocessResult | null = null;
         if (isPreprocessEnabled() && usePreprocess && Array.isArray(payload.messages)) {
           preprocessResult = await optimizePrompt(payload.messages);
