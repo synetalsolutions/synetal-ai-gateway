@@ -29,14 +29,16 @@ export class HeadroomClient {
         model: model || this.config.model || "gpt-4o",
       });
 
-      const tokensSaved = (result.tokensBefore || 0) - (result.tokensAfter || 0);
-      log("ok", `Headroom: ${result.tokens_before} → ${result.tokens_after} tokens (saved ${tokensSaved})`);
+      const tokensBefore = result.tokensBefore || 0;
+      const tokensAfter = result.tokensAfter || 0;
+      const tokensSaved = tokensBefore - tokensAfter;
+      log("ok", `Headroom: ${tokensBefore} → ${tokensAfter} tokens (saved ${tokensSaved})`);
 
       return {
         messages: result.messages || messages,
         compressed: true,
-        tokensBefore: result.tokens_before || 0,
-        tokensAfter: result.tokens_after || 0,
+        tokensBefore,
+        tokensAfter,
         tokensSaved: Math.max(0, tokensSaved),
         compressionRatio: result.compression_ratio,
         transformsApplied: result.transforms_applied,
