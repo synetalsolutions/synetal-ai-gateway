@@ -25,12 +25,11 @@ export class HeadroomClient {
     }
 
     try {
-      const result = await headroomSDK.compress({
-        messages,
+      const result = await headroomSDK.compress(messages, {
         model: model || this.config.model || "gpt-4o",
       });
 
-      const tokensSaved = (result.tokens_before || 0) - (result.tokens_after || 0);
+      const tokensSaved = (result.tokensBefore || 0) - (result.tokensAfter || 0);
       log("ok", `Headroom: ${result.tokens_before} → ${result.tokens_after} tokens (saved ${tokensSaved})`);
 
       return {
