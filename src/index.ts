@@ -1,5 +1,5 @@
 /**
- * Synetal AI Gateway v2.4.0
+ * Kestrel AI Gateway v2.5.0
  * Entry point — imports and starts the proxy server
  */
 

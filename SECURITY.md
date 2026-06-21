@@ -2,10 +2,10 @@
 
 ## 🔐 Reporting a Vulnerability
 
-We take security seriously. If you discover a vulnerability in Synetal AI Gateway, **please do not open a public issue**. Instead, report it privately:
+We take security seriously. If you discover a vulnerability in Kestrel AI Gateway, **please do not open a public issue**. Instead, report it privately:
 
 - Email: **security@synetal.com**
-- Or use GitHub's [private vulnerability reporting](https://github.com/synetalsolutions/synetal-ai-gateway/security/advisories/new)
+- Or use GitHub's [private vulnerability reporting](https://github.com/synetalsolutions/kestrel-ai/security/advisories/new)
 
 Please include:
 - A description of the vulnerability and its impact
@@ -36,9 +36,9 @@ We will acknowledge receipt within 48 hours and aim to publish a fix within 7 da
 - WebSocket auth uses the same `PROXY_API_KEY` — keep it secret and rotate if exposed.
 - If a key is compromised, rotate it in `.env` and restart the gateway immediately:
   ```bash
-  pm2 restart synetal-gateway --update-env
+  pm2 restart kestrel-gateway --update-env
   ```
 
 ---
 
-Thank you for helping keep Synetal AI Gateway and its users safe. 🙏
+Thank you for helping keep Kestrel AI Gateway and its users safe. 🙏

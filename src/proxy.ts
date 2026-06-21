@@ -1,5 +1,5 @@
 /**
- * Synetal AI Gateway — Main Proxy Server
+ * Kestrel AI Gateway — Main Proxy Server
  * Supports: cost-aware routing, circuit breaker, fallback, caching, streaming
  */
 
@@ -378,7 +378,7 @@ const server = http.createServer(async (req, res) => {
       JSON.stringify({
         status: overallStatus,
         proxy: "multi-model-proxy",
-        version: "2.4.0",
+        version: "2.5.0",
         features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-aware-routing", "cost-tracking", "context-truncation", "circuit-breaker"],
         providers: Object.keys(CONFIG.providers) as ProviderKey[],
         defaultProvider: CONFIG.defaultProvider,
@@ -446,7 +446,7 @@ const server = http.createServer(async (req, res) => {
 
     // Build model list from the registry + virtual auto-routing aliases
     const autoAliases = [
-      { id: "synetal-ai", description: "🤖 Auto-route (cost-aware + circuit breaker)" },
+      { id: "kestrel-ai", description: "🤖 Auto-route (cost-aware + circuit breaker)" },
       { id: "auto", description: "🤖 Auto-route alias" },
     ];
 
@@ -469,7 +469,7 @@ const server = http.createServer(async (req, res) => {
       id: a.id,
       object: "model",
       created: now,
-      owned_by: "synetal",
+      owned_by: "kestrel",
       description: a.description,
     }));
 
@@ -478,7 +478,7 @@ const server = http.createServer(async (req, res) => {
       id,
       object: "model",
       created: now,
-      owned_by: "synetal",
+      owned_by: "kestrel",
       description: "🔄 Alias → auto-route",
     }));
 
@@ -513,7 +513,7 @@ const server = http.createServer(async (req, res) => {
         // ── AI Gateway: Rate Limiting (REMOVED) ──────────────────────────
 
         // Multiple model aliases trigger smart routing
-        const smartModels = ["synetal-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"];
+        const smartModels = ["kestrel-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"];
         const modelIsAuto = smartModels.includes(payload.model) || !payload.model;
 
         // Check if user specified a specific model from our registry

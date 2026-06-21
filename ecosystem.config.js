@@ -1,4 +1,4 @@
-// Synetal AI Gateway — PM2 Production Configuration
+// Kestrel AI Gateway — PM2 Production Configuration
 // Usage:
 //   1. Copy .env.example to .env and fill in your keys
 //   2. Generate a secure PROXY_API_KEY: openssl rand -hex 32
@@ -10,7 +10,7 @@
 module.exports = {
   apps: [
     {
-      name: 'synetal-gateway',
+      name: 'kestrel-gateway',
       script: './dist/index.js',
       cwd: '/www/wwwroot/copilot.synetal.com',
       env: {

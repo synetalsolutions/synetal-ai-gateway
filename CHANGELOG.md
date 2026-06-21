@@ -1,7 +1,28 @@
 # Changelog
 
-All notable changes to **Synetal AI Gateway** follow [Semantic Versioning](https://semver.org/).
+All notable changes to **Kestrel AI Gateway** follow [Semantic Versioning](https://semver.org/).
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+---
+
+## [2.5.0] — 2026-06-21
+
+### 🪶 Changed
+- **Project rebranded**: Synetal AI Gateway → **Kestrel AI Gateway**.
+- New package name: `kestrel-ai` (npm) — available for publishing.
+- GitHub repo renamed: `synetalsolutions/synetal-ai-gateway` → `synetalsolutions/kestrel-ai`.
+- PM2 process name: `synetal-gateway` → `kestrel-gateway`.
+- Docker container name: `synetal-gateway` → `kestrel-gateway`.
+- Virtual model alias: `synetal-ai` → `kestrel-ai` (auto-route still also triggered by
+  `auto`, `gpt-4`, `gpt-4o`, and other GPT aliases).
+- README title emoji: 🧠 → 🪶 (kestrel feather).
+
+### ✨ Added
+- `kestrel-ai` model alias now joins `auto`, `gpt-4o`, etc. as smart-routing triggers.
+
+### 🔒 Security
+- CI secret scanner: dropped key-prefix patterns from public ci.yml file (was leaking
+  key prefixes to public view).
 
 ---
 
@@ -17,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **All Xiaomi MiMo models**: `mimo-v2.5-pro`, `mimo-v2.5`, `mimo-v2-pro`, `mimo-v2-omni`.
 - **All DeepSeek models**: `deepseek-v4-pro`, `deepseek-v4-flash`.
 - `/v1/models` endpoint now serves a live catalog with per-model pricing.
-- Virtual aliases `synetal-ai`, `auto`, `gpt-4o`, `gpt-4`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`.
+- Virtual aliases `kestrel-ai`, `auto`, `gpt-4o`, `gpt-4`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`.
 - 3-branch smart routing in `proxy.ts`: direct-route, cost-aware auto-route, legacy fallback.
 
 ### 🔒 Security

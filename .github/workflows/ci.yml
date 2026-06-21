@@ -35,11 +35,12 @@ jobs:
 
       - name: ✅ Verify security (no hardcoded secrets)
         run: |
-          # Scan source files only — skip .github/ (this file itself), node_modules, dist
-          if grep -rnE "(sk-synetal|sk-jttt|sk-248120f0|de812bf0|tp-skcfch)" \
+          # Scan source files for common secret patterns
+          if grep -rnE "sk-[A-Za-z0-9]{20,}|[a-f0-9]{32}\.[A-Za-z0-9]{16}|tp-sk[a-z0-9]{20,}" \
               --include="*.ts" --include="*.js" --include="*.md" --include="*.json" \
-              --exclude-dir=.github --exclude-dir=node_modules --exclude-dir=dist .; then
+              --exclude-dir=node_modules --exclude-dir=dist .; then
             echo "❌ Hardcoded secrets detected!"
+            git diff --stat || true
             exit 1
           fi
           echo "✅ No hardcoded secrets found"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # ─────────────────────────────────────────────────────────────────────────────
-#  Synetal AI Gateway — Branch Protection & Repo Setup Script
+#  Kestrel AI Gateway — Branch Protection & Repo Setup Script
 # ─────────────────────────────────────────────────────────────────────────────
 #
 #  WHAT THIS DOES:
@@ -26,12 +26,12 @@
 set -euo pipefail
 
 # ── Config ─────────────────────────────────────────────────────────────────
-REPO="synetalsolutions/synetal-ai-gateway"
+REPO="synetalsolutions/kestrel-ai"
 BRANCH="main"
 MIN_REVIEWERS="1"
 
 echo "╔══════════════════════════════════════════════════╗"
-echo "║  Synetal AI Gateway — Branch Protection Setup    ║"
+echo "║  Kestrel AI Gateway — Branch Protection Setup    ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 

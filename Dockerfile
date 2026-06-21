@@ -1,4 +1,4 @@
-# Synetal AI Gateway — Docker Image
+# Kestrel AI Gateway — Docker Image
 # Cost-aware multi-model AI gateway: Kimi, DeepSeek, GLM, Xiaomi
 
 FROM node:22-alpine AS builder

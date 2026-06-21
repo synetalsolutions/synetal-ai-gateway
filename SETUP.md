@@ -1,4 +1,4 @@
-# 🚀 Synetal AI Gateway v2.4.0 — Quick Start Guide
+# 🚀 Kestrel AI Gateway v2.4.0 — Quick Start Guide
 
 > **Full docs:** See [README.md](README.md) for architecture, innovation, and deep-dive.
 > This is a concise, copy-paste-ready setup guide.
@@ -19,8 +19,8 @@
 ## 🛠️ Step 1 — Get the Code
 
 ```bash
-git clone https://github.com/synetalsolutions/synetal-ai-gateway.git
-cd synetal-ai-gateway
+git clone https://github.com/synetalsolutions/kestrel-ai.git
+cd kestrel-ai
 npm install
 ```
 
@@ -87,14 +87,14 @@ The gateway is OpenAI-compatible. Any IDE that supports custom OpenAI endpoints 
 | Base URL | `https://your-gateway.com/v1` |
 | API Key | *Your `PROXY_API_KEY`* |
 
-Recommended model alias in Cursor dropdown: **`synetal-ai`** (auto-route).
+Recommended model alias in Cursor dropdown: **`kestrel-ai`** (auto-route).
 
 ### VS Code Copilot
 
 ```json
 {
   "github.copilot.advanced": {
-    "debug.overrideEngine": "synetal-ai",
+    "debug.overrideEngine": "kestrel-ai",
     "debug.overrideProxyUrl": "https://your-gateway.com"
   }
 }
@@ -110,9 +110,9 @@ In `~/.continue/config.json`:
 {
   "models": [
     {
-      "title": "Synetal Auto-Route",
+      "title": "Kestrel Auto-Route",
       "provider": "openai",
-      "model": "synetal-ai",
+      "model": "kestrel-ai",
       "apiBase": "https://your-gateway.com/v1",
       "apiKey": "<YOUR_PROXY_API_KEY>"
     }
@@ -125,7 +125,7 @@ In `~/.continue/config.json`:
 **API Provider** → *OpenAI Compatible*:
 - Base URL: `https://your-gateway.com/v1`
 - API Key: *Your `PROXY_API_KEY`*
-- Model: `synetal-ai`
+- Model: `kestrel-ai`
 
 ---
 
@@ -135,8 +135,8 @@ You control routing by selecting different model names. No special headers neede
 
 | Model Name | What It Does |
 |------------|--------------|
-| `synetal-ai` | **Auto-route** — cost-aware routing (recommended) |
-| `auto` | Alias for `synetal-ai` |
+| `kestrel-ai` | **Auto-route** — cost-aware routing (recommended) |
+| `auto` | Alias for `kestrel-ai` |
 | `gpt-4o`, `gpt-4`, `gpt-3.5-turbo` | Aliases for Cursor compatibility → auto-route |
 | `glm-5.2`, `kimi-k2.7-code`, etc. | **Direct route** to a specific model — bypasses smart routing |
 
@@ -153,7 +153,7 @@ curl -X POST https://your-gateway.com/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <YOUR_PROXY_API_KEY>" \
   -d '{
-    "model": "synetal-ai",
+    "model": "kestrel-ai",
     "messages": [{"role": "user", "content": "Write a Python function to check palindromes"}]
   }'
 ```
@@ -169,7 +169,7 @@ client = OpenAI(
 )
 
 resp = client.chat.completions.create(
-    model="synetal-ai",
+    model="kestrel-ai",
     messages=[{"role": "user", "content": "Hello"}],
 )
 print(resp.choices[0].message.content)
@@ -197,4 +197,4 @@ print(resp.choices[0].message.content)
 | "All providers failed" | Check `/health`; all providers may be down or quotas exhausted |
 | `429` from gateway | You hit the per-IP rate limit (120 rpm). Reduce request rate. |
 | No GLM responses | Verify your Z.AI account has balance — `/health` will flag `(unreachable)` |
-| Need admin restart | `pm2 restart synetal-gateway --update-env` |
+| Need admin restart | `pm2 restart kestrel-gateway --update-env` |

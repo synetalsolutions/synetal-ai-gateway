@@ -27,3 +27,4 @@ Thumbs.db
 
 # Private notes — not for public repo
 PRODUCTION_NOTES.md
+*.bak

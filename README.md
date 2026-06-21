@@ -1,6 +1,6 @@
-# 🧠 Synetal AI Gateway
+# � Kestrel AI Gateway
 
-[![CI](https://github.com/synetalsolutions/synetal-ai-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/synetalsolutions/synetal-ai-gateway/actions/workflows/ci.yml)
+[![CI](https://github.com/synetalsolutions/kestrel-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/synetalsolutions/kestrel-ai/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-≥18-green.svg)](https://nodejs.org/)
 [![Models](https://img.shields.io/badge/Models-26+-blue.svg)](#-all-26-supported-models)
@@ -14,9 +14,9 @@
 
 ## 🎯 What Is This?
 
-Synetal AI Gateway is a **production-grade reverse-proxy** that sits between your IDE (Cursor, VS Code Copilot, Continue.dev) and multiple LLM providers (GLM/Z.AI, Kimi/Moonshot, DeepSeek, Xiaomi MiMo). It looks like a standard OpenAI API to your IDE — but behind the scenes it does something no single provider can:
+Kestrel AI Gateway is a **production-grade reverse-proxy** that sits between your IDE (Cursor, VS Code Copilot, Continue.dev) and multiple LLM providers (GLM/Z.AI, Kimi/Moonshot, DeepSeek, Xiaomi MiMo). It looks like a standard OpenAI API to your IDE — but behind the scenes it does something no single provider can:
 
-| | Single Provider | **Synetal AI Gateway** |
+| | Single Provider | **Kestrel AI Gateway** |
 |---|---|---|
 | **Cost per request** | Fixed — you pay premium even for "hi" | **Dynamic** — "hi" goes to a free model, complex code goes to premium |
 | **Rate limits** | Request fails with 429 | **Circuit breaker** auto-switches to next provider |
@@ -267,7 +267,7 @@ All models are live-fetched from each provider and registered with full metadata
 
 | Alias | Maps To |
 |-------|---------|
-| `synetal-ai` | 🤖 Auto-route (cost-aware + circuit breaker) |
+| `kestrel-ai` | 🤖 Auto-route (cost-aware + circuit breaker) |
 | `auto` | 🤖 Auto-route alias |
 | `gpt-4` | 🔄 Auto-route (Cursor compatibility) |
 | `gpt-4o` | 🔄 Auto-route (Cursor compatibility) |
@@ -284,12 +284,12 @@ graph TB
     Client[Cursor IDE / VS Code / Continue.dev / curl]
     Client -->|POST /v1/chat/completions| Gateway
 
-    subgraph Gateway [Synetal AI Gateway :3456]
+    subgraph Gateway [Kestrel AI Gateway :3456]
         Auth[API Key Auth]
         Auth --> Router{Routing Decision}
 
         Router -->|Specific model requested| DirectRoute[Direct Route<br/>e.g. glm-4.6 → GLM]
-        Router -->|Auto / synetal-ai| Smart[Cost-Aware Smart Router]
+        Router -->|Auto / kestrel-ai| Smart[Cost-Aware Smart Router]
         Router -->|Fallback / explicit| Classic[Fallback Engine]
 
         Smart --> Scorer[Complexity Scorer<br/>0-100 score]
@@ -338,14 +338,14 @@ curl https://your-gateway.com/v1/chat/completions \
 # → Routes directly to GLM provider with glm-4.6
 ```
 
-### 2. Auto-Route / synetal-ai (Recommended)
+### 2. Auto-Route / kestrel-ai (Recommended)
 
 The gateway analyzes your prompt and picks the best model automatically:
 
 ```bash
 curl https://your-gateway.com/v1/chat/completions \
   -H "Authorization: Bearer sk-your-key" \
-  -d '{"model":"synetal-ai","messages":[{"role":"user","content":"Write a Python web scraper"}]}'
+  -d '{"model":"kestrel-ai","messages":[{"role":"user","content":"Write a Python web scraper"}]}'
 # → Complexity: 70/100 → Premium tier → GLM-5.2 or Kimi K2.7 Code
 ```
 
@@ -392,7 +392,7 @@ Go to **Cursor Settings** → **OpenAI API Key** section:
 In Cursor's model dropdown, type any of:
 
 ```
-synetal-ai          ← Auto-route (RECOMMENDED — cheapest, smartest)
+kestrel-ai          ← Auto-route (RECOMMENDED — cheapest, smartest)
 glm-5.2             ← Force premium model
 kimi-k2.7-code      ← Force best coding model
 deepseek-v4-flash   ← Force cheapest model
@@ -404,7 +404,7 @@ gpt-4o              ← Auto-routes to best available
 gpt-4               ← Auto-routes
 ```
 
-### Why Cursor + Synetal Gateway = ❤️
+### Why Cursor + Kestrel Gateway = ❤️
 
 | Cursor Feature | How the Gateway Helps |
 |----------------|----------------------|
@@ -438,9 +438,9 @@ In `~/.continue/config.json`:
 {
   "models": [
     {
-      "title": "Synetal Auto-Route",
+      "title": "Kestrel Auto-Route",
       "provider": "openai",
-      "model": "synetal-ai",
+      "model": "kestrel-ai",
       "apiBase": "https://your-gateway.com/v1",
       "apiKey": "<YOUR_PROXY_API_KEY>"
     },
@@ -470,14 +470,14 @@ In Cline settings → **API Provider** → **OpenAI Compatible**:
 |-------|-------|
 | Base URL | `https://your-gateway.com/v1` |
 | API Key | `<YOUR_PROXY_API_KEY>` |
-| Model ID | `synetal-ai` |
+| Model ID | `kestrel-ai` |
 
 ### GitHub Copilot (VS Code)
 
 ```json
 {
   "github.copilot.advanced": {
-    "debug.overrideEngine": "synetal-ai",
+    "debug.overrideEngine": "kestrel-ai",
     "debug.overrideProxyUrl": "https://your-gateway.com"
   }
 }
@@ -496,8 +496,8 @@ In Cline settings → **API Provider** → **OpenAI Compatible**:
 
 ```bash
 # Clone
-git clone <repo-url> synetal-gateway
-cd synetal-gateway
+git clone <repo-url> kestrel-gateway
+cd kestrel-gateway
 
 # Install dependencies
 npm install
@@ -583,7 +583,7 @@ Returns all 26+ models with metadata (pricing, context, capabilities, tier).
 ## 📁 Project Structure
 
 ```
-synetal-gateway/
+kestrel-ai/
 ├── src/
 │   ├── index.ts              # Entry point
 │   ├── proxy.ts              # Main HTTP + WebSocket server
@@ -668,10 +668,10 @@ Developer: "I need to use Cursor with GPT-4o"
 → Monthly bill: ~$75
 ```
 
-### After (Synetal AI Gateway)
+### After (Kestrel AI Gateway)
 
 ```
-Developer: "I just set model to 'synetal-ai'"
+Developer: "I just set model to 'kestrel-ai'"
 → Simple prompts go to free/cheap models automatically
 → Rate limits auto-handled by circuit breaker (invisible to user)
 → 4 providers = near-zero downtime
@@ -692,7 +692,7 @@ curl -X POST https://your-gateway.com/v1/chat/completions \
   -H "Authorization: Bearer sk-your-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "synetal-ai",
+    "model": "kestrel-ai",
     "messages": [{"role": "user", "content": "Write a Python function"}],
     "stream": true,
     "max_tokens": 2000
@@ -764,6 +764,6 @@ MIT © 2026 Synetal Solutions. See [LICENSE](LICENSE).
 
 ## ⭐ Community
 
-- Open a [Discussion](https://github.com/synetalsolutions/synetal-ai-gateway/discussions) for questions
-- File an [Issue](https://github.com/synetalsolutions/synetal-ai-gateway/issues) for bugs
+- Open a [Discussion](https://github.com/synetalsolutions/kestrel-ai/discussions) for questions
+- File an [Issue](https://github.com/synetalsolutions/kestrel-ai/issues) for bugs
 - Star ⭐ the repo if it saves you money!

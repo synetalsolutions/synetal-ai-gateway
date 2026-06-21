@@ -24,7 +24,7 @@ assignees: ''
 <!-- If applicable, paste error logs or screenshots. -->
 
 ## 🖥️ Environment
-- **Synetal AI Gateway version**: <!-- e.g. v2.4.0 -->
+- **Kestrel AI Gateway version**: <!-- e.g. v2.4.0 -->
 - **Node.js version**: <!-- e.g. 22.x -->
 - **Provider(s) affected**: <!-- kimi, deepseek, glm, xiaomi -->
 - **OS**: <!-- e.g. Ubuntu 24.04 -->

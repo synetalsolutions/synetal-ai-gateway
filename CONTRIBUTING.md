@@ -1,4 +1,4 @@
-# Contributing to Synetal AI Gateway
+# Contributing to Kestrel AI Gateway
 
 Thanks for your interest in contributing! 🎉 This is a small guide to keep things smooth.
 
@@ -12,8 +12,8 @@ Be kind. Use clear, respectful language in issues and PRs. We follow the
 ## 🚀 Quick Start for Contributors
 
 ```bash
-git clone https://github.com/synetalsolutions/synetal-ai-gateway.git
-cd synetal-ai-gateway
+git clone https://github.com/synetalsolutions/kestrel-ai.git
+cd kestrel-ai
 ./scripts/dev-setup.sh          # Auto: npm install + .env + build
 npm run dev                      # ts-node hot mode
 ```
@@ -101,4 +101,4 @@ Releases are tagged on `main` after PR review passes.
 
 ---
 
-Questions? Open a [Discussion](https://github.com/synetalsolutions/synetal-ai-gateway/discussions) or an [Issue](https://github.com/synetalsolutions/synetal-ai-gateway/issues). Happy hacking! 💻
+Questions? Open a [Discussion](https://github.com/synetalsolutions/kestrel-ai/discussions) or an [Issue](https://github.com/synetalsolutions/kestrel-ai/issues). Happy hacking! 💻

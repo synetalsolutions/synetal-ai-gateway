@@ -1,7 +1,7 @@
 {
-  "name": "synetal-ai-gateway",
-  "version": "2.4.0",
-  "description": "Cost-aware multi-model AI gateway — smart routing, circuit breaker, 26+ models from 4 providers, OpenAI-compatible",
+  "name": "kestrel-ai",
+  "version": "2.5.0",
+  "description": "Kestrel AI — cost-aware multi-model LLM gateway with smart routing, circuit breaker, and built-in context truncation (57–96% token savings). OpenAI-compatible.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -11,6 +11,8 @@
     "clean": "rm -rf dist"
   },
   "keywords": [
+    "kestrel",
+    "kestrel-ai",
     "llm",
     "proxy",
     "gateway",
@@ -31,13 +33,13 @@
   ],
   "author": "Synetal Solutions",
   "license": "MIT",
-  "homepage": "https://github.com/synetalsolutions/synetal-ai-gateway",
+  "homepage": "https://github.com/synetalsolutions/kestrel-ai",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/synetalsolutions/synetal-ai-gateway.git"
+    "url": "git+https://github.com/synetalsolutions/kestrel-ai.git"
   },
   "bugs": {
-    "url": "https://github.com/synetalsolutions/synetal-ai-gateway/issues"
+    "url": "https://github.com/synetalsolutions/kestrel-ai/issues"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

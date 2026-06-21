@@ -1,5 +1,5 @@
 /**
- * Core types for Synetal AI Gateway
+ * Core types for Kestrel AI Gateway
  */
 
 export type ProviderKey = "kimi" | "deepseek" | "glm" | "openai" | "anthropic" | "xiaomi";

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # ─────────────────────────────────────────────────────────────────────────────
-#  Synetal AI Gateway — Development Environment Setup Script
+#  Kestrel AI Gateway — Development Environment Setup Script
 # ─────────────────────────────────────────────────────────────────────────────
 #
 #  Quick setup for developers cloning the repo for the first time.
@@ -13,7 +13,7 @@
 set -euo pipefail
 
 echo "╔══════════════════════════════════════════════════╗"
-echo "║  Synetal AI Gateway — Dev Setup                  ║"
+echo "║  Kestrel AI Gateway — Dev Setup                  ║"
 echo "╚══════════════════════════════════════════════════╝"
 echo ""
 
