@@ -117,7 +117,9 @@ export async function makeRequest(
 }
 
 /**
- * Make streaming request and return the response object
+ * Make streaming request and return the response object.
+ * For non-200 responses, reads the error body and rejects with an informative error
+ * so the caller can log/fallback properly.
  */
 export function makeStreamingRequest(
   options: https.RequestOptions,
@@ -125,6 +127,16 @@ export function makeStreamingRequest(
 ): Promise<http.IncomingMessage> {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
+      // If upstream returned an error status, read body and reject
+      if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
+        let errBody = "";
+        res.setEncoding("utf-8");
+        res.on("data", (chunk) => (errBody += chunk));
+        res.on("end", () => {
+          reject(new Error(`HTTP ${res.statusCode}: ${errBody.slice(0, 500)}`));
+        });
+        return;
+      }
       resolve(res);
     });
     req.on("error", reject);

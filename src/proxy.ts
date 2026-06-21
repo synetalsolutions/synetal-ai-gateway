@@ -155,6 +155,7 @@ async function executeProviderRequest(
         statusCode: streamingRes.statusCode || undefined,
         headers: streamingRes.headers,
         streamingRes,
+        error: streamingRes.statusCode === 200 ? undefined : `HTTP ${streamingRes.statusCode}`,
       };
     } else {
       const start = Date.now();
@@ -490,18 +491,27 @@ const server = http.createServer(async (req, res) => {
         if (!result.success) {
           const lastAttempt = result.attempts[result.attempts.length - 1];
           logError(requestId, `All providers failed. Last: ${lastAttempt?.error || "unknown"}`);
-          res.writeHead(502, { "Content-Type": "application/json" });
+
+          // Return OpenAI-compatible error format so Cursor handles it correctly
+          // instead of misinterpreting as "rate limit exceeded"
+          const errorDetail = lastAttempt?.error || "All upstream providers failed";
+          const upstreamStatus = lastAttempt?.statusCode;
+
+          // Map to appropriate HTTP status: 502 for unknown, passthrough for known
+          const httpStatus = upstreamStatus && upstreamStatus >= 400 && upstreamStatus < 600
+            ? upstreamStatus
+            : 502;
+
+          res.writeHead(httpStatus, { "Content-Type": "application/json" });
           res.end(
             JSON.stringify({
-              error: "All providers failed",
+              error: {
+                message: errorDetail,
+                type: upstreamStatus === 429 ? "rate_limit_error" : "api_error",
+                code: upstreamStatus === 429 ? "rate_limit_exceeded" : "all_providers_failed",
+                param: null,
+              },
               requestId,
-              attempts: result.attempts.map((a) => ({
-                provider: a.provider,
-                success: a.success,
-                statusCode: a.statusCode,
-                error: a.error,
-                latencyMs: a.latencyMs,
-              })),
             })
           );
           return;
