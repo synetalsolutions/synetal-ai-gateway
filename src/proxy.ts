@@ -441,10 +441,29 @@ const server = http.createServer(async (req, res) => {
 
         // ── AI Gateway: Prompt Preprocessor ──────────────────────────────
         // Optimizes raw/vague/hindi dev prompts using deepseek-flash.
-        // DISABLED for "smart auto" models by default — the preprocessor was
-        // corrupting clear prompts (e.g. "what is 2+2" → "Answer: 4", making
-        // the main model reply "what question?"). Now opt-in via header only.
-        const usePreprocess = req.headers["x-preprocess"] === "true";
+        //
+        // When it runs:
+        // - If X-Preprocess: false header → explicitly disabled
+        // - If X-Preprocess: true header → explicitly enabled
+        // - Otherwise: automatically SKIP for large requests (Cursor sends
+        //   100K+ token system prompts — preprocessor is useless there and
+        //   just adds latency). Run only on small/direct API calls.
+        //
+        // The preprocessor internally checks needsOptimization() and skips
+        // if the prompt is already clear/structured/code — so even when
+        // enabled, most requests bypass it with zero latency cost.
+        const preprocessExplicit = req.headers["x-preprocess"];
+        let usePreprocess: boolean;
+        if (preprocessExplicit === "false") {
+          usePreprocess = false;
+        } else if (preprocessExplicit === "true") {
+          usePreprocess = true;
+        } else {
+          // Auto-detect: skip preprocessor for large payloads (Cursor-like)
+          const bodySize = Buffer.byteLength(body);
+          usePreprocess = bodySize < 20000; // < 20KB = likely direct API call
+        }
+
         let preprocessResult: PreprocessResult | null = null;
         if (isPreprocessEnabled() && usePreprocess && Array.isArray(payload.messages)) {
           preprocessResult = await optimizePrompt(payload.messages);

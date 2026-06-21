@@ -11,19 +11,24 @@ import { log } from "./logger";
 const PREPROCESS_MODEL = process.env.PREPROCESS_MODEL || "deepseek-v4-flash";
 const PREPROCESS_ENABLED = process.env.PREPROCESS_ENABLED !== "false"; // default ON
 
-const SYSTEM_PROMPT = `You are a prompt optimizer for an AI coding agent. 
+const SYSTEM_PROMPT = `You are a prompt rephraser for an AI coding agent.
 
-Your job: take the developer's raw message and transform it into a **clear, structured task**.
+Your ONLY job: rephrase ambiguous messages into clearer instructions.
 
-Rules:
-- Extract the REAL intent — what does the developer actually want?
-- If the message is vague ("fix this", "ye kya he", "better krdo"), infer the intent.
-- If the message references an image/screenshot, phrase the prompt to describe what to look for in the image.
-- Add necessary technical constraints (language, framework, files to touch).
-- If the message is in Hindi/mixed language, output in English.
-- Remove fluff, greetings, emojis, and random text.
-- Keep it CONCISE — max 3-4 sentences.
-- Output ONLY the improved prompt. No explanations, no markdown headers.`;
+CRITICAL RULES:
+- NEVER answer the question. You are rephrasing, NOT solving.
+- NEVER add technical details, file names, or constraints not in the original.
+- If in Hindi/mixed language, translate to English.
+- If already clear and specific, return it almost unchanged (minor tidying only).
+- Keep it CONCISE — same length or shorter than original.
+- Output ONLY the rephrased message. No explanations.
+
+GOOD examples:
+- "ye kya he" → "What is this code doing?"
+- "better krdo" → "Improve this code quality"
+- "fix this" → "Fix the bug in this code"
+- "What is 2+2?" → "What is 2+2?" (already clear, unchanged)
+- "add login" → "Add a login feature" (already clear, unchanged)`;
 
 export interface PreprocessResult {
   optimized: boolean;
@@ -122,34 +127,50 @@ function needsOptimization(text: string, hasImage: boolean): boolean {
   if (!trimmed) return false;
 
   // Skip if very short (just "hi", "yes", "ok", "continue", "thanks")
-  if (/^(hi|hello|hey|yes|no|ok|okay|thanks|thank you|continue|go on|next|bye)[.!]*$/i.test(trimmed)) {
+  if (/^(hi|hello|hey|yes|no|ok|okay|thanks|thank you|continue|go on|next|bye|done|perfect|great)[.!]*$/i.test(trimmed)) {
     return false;
   }
 
-  // Skip if already structured (has markdown, code blocks, numbered lists)
+  // Skip clear questions — they are already precise
+  // "What is X?", "How do I Y?", "Why does Z happen?"
+  if (/^(what|how|why|when|where|who)\s.*(is|are|do|does|did|can|should|would|will|happen|work)\b/i.test(trimmed) && trimmed.length < 100) {
+    return false;
+  }
+
+  // Skip code-containing messages (code blocks, inline code)
   if (/```|\*\*|^#|^\d+\.|^\-\s/m.test(text)) {
     return false;
   }
 
-  // Skip if very detailed (>300 chars, likely already clear)
-  if (text.length > 300) {
+  // Skip if already detailed enough (likely already clear)
+  if (text.length > 200) {
     return false;
   }
 
   // For image+text: optimize if text is vague regardless of length
-  if (hasImage && text.length < 100) {
+  if (hasImage && text.length < 80) {
     return true;
   }
 
-  // Optimize if: short, vague keywords, Hindi/mixed language, or ambiguous
-  const vaguePatterns = [
-    /\b(fix|change|update|modify|add|remove|delete)\s+(it|this|that)\b/i,
-    /\b(better|improve|enhance|optimize)\s+(karo|krdo|karde|karna|do)\b/i,
-    /\b(sahi|galat|kam|nahi|hai|karo|krdo|dalo|hatao|banao)\b/i,
-    /[\u0900-\u097F]/, // Devanagari (Hindi)
+  // Optimize ONLY if: Hindi/Devanagari present (translate needed), or
+  // extremely vague command keywords without context
+  const hindiPatterns = [
+    /\b(sahi|galat|kam|nahi|hai|karo|krdo|karde|karna|dalo|hatao|banao|chahiye|kya|mujhe|mera|aap|ye|wo|ka|ki|ne|se|ko|par|aur|toh)\b/i,
+    /[\u0900-\u097F]/, // Devanagari script
   ];
 
-  return vaguePatterns.some((p) => p.test(text)) || text.length < 50;
+  // Only optimize if Hindi is detected — this is the primary use case
+  if (hindiPatterns.some((p) => p.test(text))) {
+    return true;
+  }
+
+  // VERY short vague commands in English (under 30 chars, no question/code)
+  if (text.length < 30 && !(/[?]/.test(text))) {
+    const shortVague = /^(fix|update|change|better|improve|broken|error|help|test|deploy|build)$/i;
+    if (shortVague.test(trimmed)) return true;
+  }
+
+  return false;
 }
 
 /**
