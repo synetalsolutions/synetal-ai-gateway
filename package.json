@@ -31,13 +31,13 @@
   ],
   "author": "Synetal Solutions",
   "license": "MIT",
-  "homepage": "https://github.com/synetalsolutions/synetal-copilot",
+  "homepage": "https://github.com/synetalsolutions/synetal-ai-gateway",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/synetalsolutions/synetal-copilot.git"
+    "url": "git+https://github.com/synetalsolutions/synetal-ai-gateway.git"
   },
   "bugs": {
-    "url": "https://github.com/synetalsolutions/synetal-copilot/issues"
+    "url": "https://github.com/synetalsolutions/synetal-ai-gateway/issues"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

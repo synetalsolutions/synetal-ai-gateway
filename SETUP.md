@@ -19,8 +19,8 @@
 ## 🛠️ Step 1 — Get the Code
 
 ```bash
-git clone https://github.com/synetalsolutions/synetal-copilot.git
-cd synetal-copilot
+git clone https://github.com/synetalsolutions/synetal-ai-gateway.git
+cd synetal-ai-gateway
 npm install
 ```
 

@@ -1,5 +1,11 @@
 # 🧠 Synetal AI Gateway
 
+[![CI](https://github.com/synetalsolutions/synetal-ai-gateway/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/synetalsolutions/synetal-ai-gateway/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/Node.js-≥18-green.svg)](https://nodejs.org/)
+[![Models](https://img.shields.io/badge/Models-26+-blue.svg)](#-all-26-supported-models)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 ### A Cost-Aware, Self-Healing Multi-Model AI Gateway for Cursor, VS Code, and beyond
 
 > **One endpoint. 26+ models from 4 providers. Zero config routing that saves up to 90% on LLM costs.**
@@ -618,6 +624,8 @@ Returns request counts, latency percentiles (p50/p95/p99), and cache stats.
 
 ## 🛠️ Development
 
+> **New contributor?** Run `./scripts/dev-setup.sh` — it installs dependencies, generates a `.env` with a random key, and builds the project automatically.
+
 ```bash
 # Install
 npm install
@@ -656,6 +664,6 @@ MIT © 2026 Synetal Solutions. See [LICENSE](LICENSE).
 
 ## ⭐ Community
 
-- Open a [Discussion](https://github.com/synetalsolutions/synetal-copilot/discussions) for questions
-- File an [Issue](https://github.com/synetalsolutions/synetal-copilot/issues) for bugs
+- Open a [Discussion](https://github.com/synetalsolutions/synetal-ai-gateway/discussions) for questions
+- File an [Issue](https://github.com/synetalsolutions/synetal-ai-gateway/issues) for bugs
 - Star ⭐ the repo if it saves you money!

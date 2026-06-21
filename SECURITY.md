@@ -5,7 +5,7 @@
 We take security seriously. If you discover a vulnerability in Synetal AI Gateway, **please do not open a public issue**. Instead, report it privately:
 
 - Email: **security@synetal.com**
-- Or use GitHub's [private vulnerability reporting](https://github.com/synetalsolutions/synetal-copilot/security/advisories/new)
+- Or use GitHub's [private vulnerability reporting](https://github.com/synetalsolutions/synetal-ai-gateway/security/advisories/new)
 
 Please include:
 - A description of the vulnerability and its impact

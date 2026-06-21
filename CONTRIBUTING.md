@@ -12,12 +12,19 @@ Be kind. Use clear, respectful language in issues and PRs. We follow the
 ## 🚀 Quick Start for Contributors
 
 ```bash
-git clone https://github.com/synetalsolutions/synetal-copilot.git
-cd synetal-copilot
+git clone https://github.com/synetalsolutions/synetal-ai-gateway.git
+cd synetal-ai-gateway
+./scripts/dev-setup.sh          # Auto: npm install + .env + build
+npm run dev                      # ts-node hot mode
+```
+
+Or manually:
+
+```bash
 npm install
-cp .env.example .env        # Fill in your keys
+cp .env.example .env             # Fill in your keys
 npm run build
-npm run dev                  # ts-node hot mode
+npm run dev
 ```
 
 ---
@@ -94,4 +101,4 @@ Releases are tagged on `main` after PR review passes.
 
 ---
 
-Questions? Open a [Discussion](https://github.com/synetalsolutions/synetal-copilot/discussions) or an [Issue](https://github.com/synetalsolutions/synetal-copilot/issues). Happy hacking! 💻
+Questions? Open a [Discussion](https://github.com/synetalsolutions/synetal-ai-gateway/discussions) or an [Issue](https://github.com/synetalsolutions/synetal-ai-gateway/issues). Happy hacking! 💻
