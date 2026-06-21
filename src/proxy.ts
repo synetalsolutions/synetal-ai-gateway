@@ -1,6 +1,6 @@
 /**
- * Multi-Model Proxy Server
- * Supports: fallback, load-balancing, WebSocket, streaming, context-truncation
+ * Synetal AI Gateway — Main Proxy Server
+ * Supports: cost-aware routing, circuit breaker, fallback, caching, streaming
  */
 
 import * as http from "http";
@@ -42,8 +42,6 @@ import {
   getCircuitStatus,
 } from "./circuit-breaker";
 import { MODEL_REGISTRY, getAllModelIds, findModel, getDefaultModel } from "./model-registry";
-// Preprocessor disabled — was corrupting random prompts with wrong optimizations.
-// import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
 
 const CONFIG = loadConfig();
 const fallbackEngine = new FallbackEngine(CONFIG);

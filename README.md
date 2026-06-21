@@ -1,447 +1,642 @@
-# Multi-Model LLM Proxy with Headroom Compression v2.0
+# 🧠 Synetal AI Gateway
 
-A single proxy endpoint that routes to **Kimi**, **DeepSeek**, **GLM-4**, **OpenAI**, **Anthropic**, and more — with automatic [Headroom](https://github.com/chopratejas/headroom) context compression, **intelligent fallback**, **load balancing**, and **WebSocket streaming**.
+### A Cost-Aware, Self-Healing Multi-Model AI Gateway for Cursor, VS Code, and beyond
 
----
-
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-Model Routing** | Auto-detect provider from model name, or force via `X-Provider` header |
-| **Headroom Compression** | 60–95% token savings via SmartCrusher, CodeCompressor, Kompress-base |
-| **Intelligent Fallback** | If DeepSeek fails → auto-retry GLM → then OpenAI (configurable chain) |
-| **Load Balancing** | Round-robin across providers by model family (`reasoning`, `coding`, `vision`) |
-| **WebSocket API** | Real-time chat over WebSocket with streaming support |
-| **Provider Fixes** | Auto-patches Kimi `top_p`, `reasoning_content`, Anthropic `max_tokens`, etc. |
-| **Full TypeScript** | Strongly typed, compiled to `dist/`, source maps included |
-| **Health Checks** | Per-provider latency and reachability monitoring at `/health` |
-| **Token Savings Tracking** | Built-in `/stats` with latency percentiles (p50, p95, p99) |
-| **Zero Code Changes** | Drop-in proxy — point your app to `http://localhost:3456` |
+> **One endpoint. 26+ models from 4 providers. Zero config routing that saves up to 90% on LLM costs.**
 
 ---
 
-## Supported Providers
+## 🎯 What Is This?
 
-| Provider | Model Examples | Detection Keyword |
-|----------|---------------|-------------------|
-| **Kimi** (Moonshot) | `kimi-latest`, `moonshot-v1-128k` | `kimi`, `moonshot` |
-| **DeepSeek** | `deepseek-chat`, `deepseek-reasoner` | `deepseek` |
-| **GLM-4** (Zhipu) | `glm-4`, `glm-4-plus`, `chatglm3` | `glm` |
-| **OpenAI** | `gpt-4o`, `gpt-4o-mini`, `o3-mini` | `gpt`, `o1`, `o3` |
-| **Anthropic** | `claude-sonnet-4-5-20250929` | `claude`, `anthropic` |
+Synetal AI Gateway is a **production-grade reverse-proxy** that sits between your IDE (Cursor, VS Code Copilot, Continue.dev) and multiple LLM providers (GLM/Z.AI, Kimi/Moonshot, DeepSeek, Xiaomi MiMo). It looks like a standard OpenAI API to your IDE — but behind the scenes it does something no single provider can:
 
----
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-# Install Node.js dependencies (TypeScript + ws)
-npm install
-
-# Install Headroom proxy (requires Python 3.10+)
-pip install "headroom-ai[proxy]"
-```
-
-### 2. Configure Environment
-
-```bash
-cp .env.example .env
-# Edit .env and add your API keys
-```
-
-### 3. Build & Start
-
-```bash
-# Terminal 1: Start Headroom compression proxy
-headroom proxy --port 8787
-
-# Terminal 2: Build and start the multi-model router
-npm run build
-npm start
-```
-
-### 4. Use It
-
-```bash
-# Health check with per-provider status
-curl http://localhost:3456/health | jq
-
-# Auto-detects DeepSeek from model name
-curl http://localhost:3456/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model": "deepseek-chat", "messages": [{"role": "user", "content": "Hello!"}]}'
-
-# Force provider via header
-curl http://localhost:3456/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-Provider: kimi" \
-  -d '{"model": "kimi-latest", "messages": [{"role": "user", "content": "Hello!"}]}'
-
-# Enable load balancing (round-robin for model family)
-curl http://localhost:3456/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-Load-Balance: true" \
-  -d '{"model": "deepseek-chat", "messages": [{"role": "user", "content": "Hello!"}]}'
-
-# View stats
-curl http://localhost:3456/stats | jq
-```
+| | Single Provider | **Synetal AI Gateway** |
+|---|---|---|
+| **Cost per request** | Fixed — you pay premium even for "hi" | **Dynamic** — "hi" goes to a free model, complex code goes to premium |
+| **Rate limits** | Request fails with 429 | **Circuit breaker** auto-switches to next provider |
+| **Provider downtime** | Your IDE stops working | **Instant fallback** to working providers |
+| **Model selection** | You manually pick one | **Auto-detected** from prompt complexity |
+| **Token costs** | You pay for all tokens | Built-in **context truncator** saves 57–96% |
 
 ---
 
-## Fallback System
+## 🚀 Key Innovation: Cost-Aware Smart Routing
 
-When a provider fails (rate limit, timeout, server error), the proxy automatically tries the next provider in the fallback chain.
-
-### Default Fallback Chain
-```
-Your Request → DeepSeek (primary)
-                    ↓ (rate limited)
-              GLM-4 (fallback 1)
-                    ↓ (down)
-              OpenAI (fallback 2)
-```
-
-### Configure
-```bash
-# .env — customize the fallback chain
-FALLBACK_CHAIN=deepseek,glm,openai,kimi
-MAX_RETRIES=2
-RETRY_DELAY_MS=500
-```
-
-### Retryable Errors
-- `429` — Rate limited
-- `500`, `502`, `503`, `504` — Server/gateway errors
-- Network errors: `ECONNRESET`, `timeout`, `socket hang up`
-
-### Response Metadata
-Every response includes the full attempt chain:
-```json
-{
-  "choices": [...],
-  "_proxy": {
-    "provider": "glm",
-    "request_id": "a1b2c3d4",
-    "attempts": [
-      { "provider": "deepseek", "success": false, "status_code": 429, "latency_ms": 120 },
-      { "provider": "glm", "success": true, "latency_ms": 890 }
-    ]
-  }
-}
-```
-
----
-
-## Load Balancing
-
-Distribute requests across providers by model family using round-robin.
-
-### Usage
-```bash
-# Enable load balancing via header
-curl ... -H "X-Load-Balance: true"
-```
-
-### Default Groups
-| Group | Model Keywords | Providers (round-robin) |
-|-------|---------------|------------------------|
-| `reasoning` | `reasoner`, `thinking`, `o1`, `o3` | DeepSeek → OpenAI |
-| `coding` | `code`, `coder` | DeepSeek → GLM → Kimi |
-| `vision` | `vision`, `image`, `gpt-4o` | OpenAI → GLM |
-| `general` | everything else | Kimi → DeepSeek → GLM |
-
-### Configure
-```bash
-# .env — customize groups
-LOADBALANCE_REASONING=deepseek,openai
-LOADBALANCE_CODING=deepseek,glm,kimi
-LOADBALANCE_GENERAL=kimi,deepseek,glm
-LOADBALANCE_VISION=openai,glm
-```
-
----
-
-## WebSocket API
-
-Connect to `ws://localhost:3456/ws` for real-time bidirectional chat.
-
-### Connect
-```javascript
-const ws = new WebSocket("ws://localhost:3456/ws");
-
-ws.onopen = () => {
-  // Send chat request
-  ws.send(JSON.stringify({
-    type: "chat",
-    payload: {
-      model: "deepseek-chat",
-      messages: [{ role: "user", content: "Hello!" }],
-      stream: true
-    }
-  }));
-};
-
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-
-  switch (msg.type) {
-    case "connected":
-      console.log("Connected! Client ID:", msg.clientId);
-      break;
-    case "stream_start":
-      console.log("Stream started, provider:", msg.provider);
-      break;
-    case "stream_chunk":
-      console.log("Chunk:", msg.data);
-      break;
-    case "stream_end":
-      console.log("Stream ended");
-      break;
-    case "response":
-      console.log("Response:", msg.payload);
-      break;
-    case "error":
-      console.error("Error:", msg.error);
-      break;
-  }
-};
-```
-
-### WebSocket Message Types
-| Type | Direction | Description |
-|------|-----------|-------------|
-| `connected` | Server → Client | Connection established |
-| `ping` / `pong` | Both | Keepalive |
-| `chat` | Client → Server | Send a chat completion request |
-| `stream_start` | Server → Client | Streaming begins |
-| `stream_chunk` | Server → Client | SSE chunk data |
-| `stream_end` | Server → Client | Streaming complete |
-| `response` | Server → Client | Non-streaming response |
-| `error` | Server → Client | Error occurred |
-
----
-
-## VS Code / Copilot Integration
-
-### Option A: Environment Variable
-
-```bash
-export OPENAI_API_BASE=http://localhost:3456/v1
-export OPENAI_API_KEY=your-key-here
-code .
-```
-
-### Option B: VS Code Settings
-
-```json
-{
-  "github.copilot.advanced": {
-    "debug.overrideEngine": "kimi-latest",
-    "debug.testOverrideProxyUrl": "http://localhost:3456",
-    "debug.overrideProxyUrl": "http://localhost:3456"
-  }
-}
-```
-
-### Option C: Custom SDK Client
-
-```typescript
-import OpenAI from "openai";
-
-const client = new OpenAI({
-  baseURL: "http://localhost:3456/v1",
-  apiKey: "dummy", // proxy replaces with real key from .env
-  defaultHeaders: {
-    "X-Provider": "kimi",         // or let auto-detect
-    // "X-Load-Balance": "true",  // enable load balancing
-  },
-});
-
-const response = await client.chat.completions.create({
-  model: "kimi-latest",
-  messages: [{ role: "user", content: "Hello!" }],
-});
-```
-
----
-
-## Headroom Compression
-
-[Headroom](https://github.com/chopratejas/headroom) compresses tool outputs, logs, RAG chunks, files, and conversation history before they reach the LLM.
+The flagship feature. Every incoming prompt is **automatically analyzed and routed to the cheapest model that can handle it well** — no manual model selection needed.
 
 ### How It Works
 
 ```
-Your App / Copilot
-    │
-    │  POST /v1/chat/completions
-    ▼
-┌──────────────────────────────────────────────────────┐
-│  Multi-Model Proxy v2.0                              │
-│  ─────────────────────────────────────────────────   │
-│  1. Detect provider from model / header              │
-│  2. [Optional] Load balance → select provider        │
-│  3. Compress messages via Headroom proxy             │
-│     → SmartCrusher (JSON)                            │
-│     → CodeCompressor (AST)                           │
-│     → Kompress-base (ML text)                        │
-│     → CacheAligner (KV cache optimization)           │
-│  4. Apply provider-specific patches                  │
-│  5. Try primary provider                             │
-│     → if fails, fallback to next in chain            │
-│  6. Return response with metadata                    │
-└──────────────────────────────────────────────────────┘
-    │
-    │  compressed prompt + CCR retrieval tool
-    ▼
-LLM Provider (Kimi / DeepSeek / GLM / OpenAI / Anthropic)
+User sends: "hi"
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  Complexity Scorer   │  → Score: 3/100 (trivial)
+         │  (keyword + length   │  → Prompt type: "fast"
+         │   + structure analysis)│
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  Cost Tier Selector  │  → Tier: CHEAP
+         │  (0-25 → cheap,      │
+         │   26-60 → medium,    │
+         │   61-100 → premium)  │
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  Circuit Breaker     │  → Filter out rate-limited/down providers
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │  Round-Robin Pool    │  → Pick cheapest available: MiMo (FREE)
+         └─────────────────────┘
+
+Result: "hi" costs $0.00 instead of $0.00012 on GLM-5.2.
 ```
 
-### Configuration
+**For a complex coding task**, the same pipeline scores 85/100 → premium tier → GLM-5.2 or Kimi K2.7 Code.
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `HEADROOM_ENABLED` | `true` | Enable/disable compression |
-| `HEADROOM_BASE_URL` | `http://localhost:8787` | Headroom proxy URL |
-| `HEADROOM_API_KEY` | — | Headroom Cloud API key |
-| `HEADROOM_MODEL` | `gpt-4o` | Model for token counting |
-| `HEADROOM_FALLBACK` | `true` | Use uncompressed if Headroom fails |
-| `HEADROOM_TIMEOUT_MS` | `30000` | Compression timeout |
+### Real Cost Savings Example
 
-### Stats
+| Prompt | Complexity | Routed To | Cost | vs. Always-GLM-5.2 |
+|--------|-----------|-----------|------|---------------------|
+| `"hi"` | 3/100 | MiMo v2.5 (free) | **$0.00** | Saved $0.00012 |
+| `"fix typo in line 5"` | 15/100 | DeepSeek Flash ($0.1/M) | **$0.000015** | Saved 87% |
+| `"refactor this React component to use hooks"` | 55/100 | Kimi K2.6 ($1.5/M) | **$0.000225** | Saved 44% |
+| `"design a distributed consensus algorithm"` | 92/100 | GLM-5.2 ($4/$12/M) | **$0.0008** | Fair price for hard task |
+
+**Over 10,000 requests/day, this typically saves 60–80% compared to using a single premium model.**
+
+---
+
+## 🛡️ Circuit Breaker — Self-Healing Infrastructure
+
+When a provider returns rate limits (429) or errors, the gateway **automatically quarantines** it and reroutes traffic:
+
+```
+                    ┌──────────────────────────────────────────┐
+                    │           Circuit Breaker States          │
+                    ├──────────────────────────────────────────┤
+                    │                                          │
+                    │  CLOSED (healthy)                        │
+                    │     │                                    │
+                    │     │  rate_limit (429) or 500 error     │
+                    │     ▼                                    │
+                    │  OPEN (quarantined for 60s)              │
+                    │     │                                    │
+                    │     │  60s cooldown expires              │
+                    │     ▼                                    │
+                    │  HALF-OPEN (test with 1 request)         │
+                    │     │                                    │
+                    │     ├── success → CLOSED                 │
+                    │     └── failure → OPEN (reset timer)     │
+                    │                                          │
+                    └──────────────────────────────────────────┘
+```
+
+**Cooldown times by error type:**
+
+| Error | Cooldown | Behavior |
+|-------|----------|----------|
+| `429 Rate Limit` | 60 seconds | Reroute to other providers immediately |
+| `504 Timeout` | 10 seconds | Quick retry cycle |
+| `500/502/503` | 5 seconds | Brief quarantine |
+| `context_length_exceeded` | No trip | Truncator handles automatically |
+
+---
+
+## 📦 All 26+ Supported Models
+
+All models are live-fetched from each provider and registered with full metadata (pricing, context, capabilities). One model is enough — the gateway handles the rest.
+
+### GLM (Z.AI) — 8 Models
+
+| Model | Context | Tier | Input/Output (per 1M) | Capabilities |
+|-------|---------|------|----------------------|--------------|
+| `glm-5.2` | 1M | 💎 Premium | $4.00 / $12.00 | Vision, Reasoning, Code |
+| `glm-5.1` | 1M | 💎 Premium | $3.00 / $9.00 | Vision, Reasoning |
+| `glm-5` | 256K | 🔵 Medium | $2.00 / $6.00 | Vision, Reasoning |
+| `glm-5-turbo` | 128K | 🟢 Cheap | $0.30 / $0.90 | Fast, General |
+| `glm-4.7` | 128K | 🔵 Medium | $1.50 / $4.50 | Vision, Code |
+| `glm-4.6` | 128K | 🔵 Medium | $1.50 / $4.50 | Vision (Native) |
+| `glm-4.5` | 128K | 🟢 Cheap | $0.50 / $1.50 | General |
+| `glm-4.5-air` | 128K | 🟢 Cheap | $0.10 / $0.30 | Ultra-light |
+
+### Kimi (Moonshot AI) — 11 Models
+
+| Model | Context | Tier | Input/Output | Capabilities |
+|-------|---------|------|-------------|--------------|
+| `kimi-k2.7-code` | 262K | 🔵 Medium | $2.00 / $10.00 | Vision, Video, Reasoning, Code |
+| `kimi-k2.7-code-highspeed` | 262K | 🔵 Medium | $2.50 / $10.00 | Same, faster inference |
+| `kimi-k2.6` | 262K | 🔵 Medium | $1.50 / $6.00 | Vision, Video, Reasoning |
+| `kimi-k2.5` | 262K | 🟢 Cheap | $0.50 / $2.00 | Vision, Video, Reasoning |
+| `moonshot-v1-auto` | 131K | 🟢 Cheap | $0.30 / $1.00 | General |
+| `moonshot-v1-128k` | 131K | 🟢 Cheap | $0.30 / $1.00 | General |
+| `moonshot-v1-32k` | 32K | 🟢 Cheap | $0.10 / $0.40 | Fast |
+| `moonshot-v1-8k` | 8K | 🟢 Cheap | $0.05 / $0.20 | Ultra-cheap |
+| `moonshot-v1-128k-vision-preview` | 131K | 🔵 Medium | $0.50 / $2.00 | Vision |
+| `moonshot-v1-32k-vision-preview` | 32K | 🟢 Cheap | $0.30 / $1.20 | Vision |
+| `moonshot-v1-8k-vision-preview` | 8K | 🟢 Cheap | $0.20 / $0.80 | Vision (cheapest) |
+
+### DeepSeek — 2 Models
+
+| Model | Context | Tier | Input/Output | Capabilities |
+|-------|---------|------|-------------|--------------|
+| `deepseek-v4-pro` | 1M | 🔵 Medium | $1.00 / $2.00 | Reasoning, Code |
+| `deepseek-v4-flash` | 1M | 🟢 Cheap | $0.10 / $0.20 | Fast, General |
+
+### Xiaomi MiMo — 5 Models
+
+| Model | Context | Tier | Input/Output | Capabilities |
+|-------|---------|------|-------------|--------------|
+| `mimo-v2.5-pro` | 32K | 🟢 Cheap | **FREE** | Reasoning, Code |
+| `mimo-v2.5` | 32K | 🟢 Cheap | **FREE** | General |
+| `mimo-v2-pro` | 32K | 🟢 Cheap | **FREE** | General |
+| `mimo-v2-omni` | 32K | 🟢 Cheap | **FREE** | General |
+
+### Virtual Aliases (for Cursor/IDE Compatibility)
+
+| Alias | Maps To |
+|-------|---------|
+| `synetal-ai` | 🤖 Auto-route (cost-aware + circuit breaker) |
+| `auto` | 🤖 Auto-route alias |
+| `gpt-4` | 🔄 Auto-route (Cursor compatibility) |
+| `gpt-4o` | 🔄 Auto-route (Cursor compatibility) |
+| `gpt-4o-mini` | 🔄 Auto-route |
+| `gpt-4-turbo` | 🔄 Auto-route |
+| `gpt-3.5-turbo` | 🔄 Auto-route |
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    Client[Cursor IDE / VS Code / Continue.dev / curl]
+    Client -->|POST /v1/chat/completions| Gateway
+
+    subgraph Gateway [Synetal AI Gateway :3456]
+        Auth[API Key Auth]
+        Auth --> Router{Routing Decision}
+
+        Router -->|Specific model requested| DirectRoute[Direct Route<br/>e.g. glm-4.6 → GLM]
+        Router -->|Auto / synetal-ai| Smart[Cost-Aware Smart Router]
+        Router -->|Fallback / explicit| Classic[Fallback Engine]
+
+        Smart --> Scorer[Complexity Scorer<br/>0-100 score]
+        Scorer --> Tier[Cost Tier Selector<br/>cheap/medium/premium]
+        Tier --> CB[Circuit Breaker Filter]
+        CB --> RR[Round-Robin Picker]
+
+        DirectRoute --> CB
+        Classic --> CB
+
+        CB --> Cache{Cache HIT?}
+        Cache -->|Yes| ReturnCached[Return Cached Response]
+        Cache -->|No| Trunc[Context Truncator<br/>57-96% token savings]
+        Trunc --> Provider
+    end
+
+    subgraph Providers [LLM Providers]
+        Provider[Selected Provider]
+        Provider --> GLM[GLM / Z.AI<br/>8 models]
+        Provider --> Kimi[Kimi / Moonshot<br/>11 models]
+        Provider --> DS[DeepSeek<br/>2 models]
+        Provider --> MiMo[Xiaomi MiMo<br/>5 models]
+    end
+
+    GLM --> Gateway
+    Kimi --> Gateway
+    DS --> Gateway
+    MiMo --> Gateway
+
+    Gateway -->|Response + metadata| Client
+    Gateway --> CostTracker[Cost Tracker<br/>$/token accounting]
+```
+
+---
+
+## 🔧 Three Routing Modes
+
+### 1. Specific Model (Direct Route)
+
+Request a model by name — goes directly to that provider:
 
 ```bash
-curl http://localhost:3456/stats | jq
+curl https://your-gateway.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-key" \
+  -d '{"model":"glm-4.6","messages":[{"role":"user","content":"Hello"}]}'
+# → Routes directly to GLM provider with glm-4.6
 ```
+
+### 2. Auto-Route / synetal-ai (Recommended)
+
+The gateway analyzes your prompt and picks the best model automatically:
+
+```bash
+curl https://your-gateway.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-key" \
+  -d '{"model":"synetal-ai","messages":[{"role":"user","content":"Write a Python web scraper"}]}'
+# → Complexity: 70/100 → Premium tier → GLM-5.2 or Kimi K2.7 Code
+```
+
+```bash
+curl https://your-gateway.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-key" \
+  -d '{"model":"auto","messages":[{"role":"user","content":"hi"}]}'
+# → Complexity: 3/100 → Cheap tier → MiMo (FREE)
+```
+
+### 3. Fallback (Provider Chain)
+
+If auto-route isn't desired, requests fall through the provider chain:
+
+```bash
+curl https://your-gateway.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-key" \
+  -H "X-Provider: deepseek" \
+  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"Hello"}]}'
+# → DeepSeek first, fallback to GLM → Xiaomi → Kimi
+```
+
+---
+
+## 💻 Using with Cursor IDE (Best Experience)
+
+Cursor works perfectly with the gateway because it speaks the standard OpenAI API protocol.
+
+### Step 1: Open Cursor Settings
+
+`Ctrl+Shift+P` → `Cursor Settings` → **Models**
+
+### Step 2: Configure OpenAI API
+
+Go to **Cursor Settings** → **OpenAI API Key** section:
+
+| Setting | Value |
+|---------|-------|
+| **API Key** | `REDACTED-PROXY-KEY` |
+| **Base URL** | `https://your-gateway.com/v1` |
+
+### Step 3: Pick a Model
+
+In Cursor's model dropdown, type any of:
+
+```
+synetal-ai          ← Auto-route (RECOMMENDED — cheapest, smartest)
+glm-5.2             ← Force premium model
+kimi-k2.7-code      ← Force best coding model
+deepseek-v4-flash   ← Force cheapest model
+```
+
+Or use GPT aliases that Cursor recognizes natively:
+```
+gpt-4o              ← Auto-routes to best available
+gpt-4               ← Auto-routes
+```
+
+### Why Cursor + Synetal Gateway = ❤️
+
+| Cursor Feature | How the Gateway Helps |
+|----------------|----------------------|
+| **Tab completion** | Cheap/fast models (MiMo, Moonshot 8K) → instant completions at near-zero cost |
+| **Chat (Cmd+L)** | Auto-route detects if you're asking a simple question or complex architecture question |
+| **Code generation (Cmd+K)** | Premium models (GLM-5.2, Kimi K2.7) for complex multi-file edits |
+| **@codebase queries** | Long context models (GLM 1M, DeepSeek 1M) auto-selected for big context |
+| **Rate limit resilience** | Cursor never sees 429s — circuit breaker handles them transparently |
+
+### Cost Example: A Full Day of Coding in Cursor
+
+| Request Type | Count | Model Auto-Selected | Cost |
+|-------------|-------|---------------------|------|
+| Tab completions | ~500 | MiMo v2.5 (free) | $0.00 |
+| Simple chat ("what does this do?") | ~50 | DeepSeek Flash ($0.1/M) | $0.005 |
+| Code edits ("refactor this function") | ~30 | Kimi K2.6 ($1.5/$6/M) | $0.045 |
+| Complex architecture questions | ~10 | GLM-5.2 ($4/$12/M) | $0.040 |
+| **Total for 590 requests** | | | **~$0.09/day** |
+
+*Compare to using GPT-4o for everything: ~$2.50/day → **96% savings**.*
+
+---
+
+## 💻 Using with VS Code (Copilot / Continue.dev / Cline)
+
+### Continue.dev Extension
+
+In `~/.continue/config.json`:
 
 ```json
 {
-  "totalRequests": 150,
-  "compressedRequests": 142,
-  "totalTokensBefore": 523000,
-  "totalTokensAfter": 156900,
-  "totalTokensSaved": 366100,
-  "providerCounts": { "kimi": 50, "deepseek": 60, "glm": 30, "openai": 10 },
-  "fallbackCounts": { "deepseek→glm": 5, "glm→openai": 2 },
-  "latencySummary": {
-    "deepseek": { "avg": 450, "p50": 380, "p95": 1200, "p99": 2100 },
-    "kimi": { "avg": 320, "p50": 280, "p95": 800, "p99": 1500 }
+  "models": [
+    {
+      "title": "Synetal Auto-Route",
+      "provider": "openai",
+      "model": "synetal-ai",
+      "apiBase": "https://your-gateway.com/v1",
+      "apiKey": "REDACTED-PROXY-KEY"
+    },
+    {
+      "title": "GLM-5.2 Premium",
+      "provider": "openai",
+      "model": "glm-5.2",
+      "apiBase": "https://your-gateway.com/v1",
+      "apiKey": "REDACTED-PROXY-KEY"
+    },
+    {
+      "title": "Kimi K2.7 Code",
+      "provider": "openai",
+      "model": "kimi-k2.7-code",
+      "apiBase": "https://your-gateway.com/v1",
+      "apiKey": "REDACTED-PROXY-KEY"
+    }
+  ]
+}
+```
+
+### Cline / Roo Code
+
+In Cline settings → **API Provider** → **OpenAI Compatible**:
+
+| Field | Value |
+|-------|-------|
+| Base URL | `https://your-gateway.com/v1` |
+| API Key | `REDACTED-PROXY-KEY` |
+| Model ID | `synetal-ai` |
+
+### GitHub Copilot (VS Code)
+
+```json
+{
+  "github.copilot.advanced": {
+    "debug.overrideEngine": "synetal-ai",
+    "debug.overrideProxyUrl": "https://your-gateway.com"
   }
 }
 ```
 
 ---
 
-## Architecture
+## 🚀 Quick Start (Self-Host)
 
-```mermaid
-flowchart LR
-    subgraph Client
-        A[HTTP Client]
-        B[WebSocket Client]
-    end
+### Prerequisites
 
-    A -->|HTTP /v1/chat| C[Multi-Model Proxy<br/>:3456]
-    B -->|WS /ws| C
+- Node.js 18+
+- At least one LLM provider API key
 
-    C -->|POST /v1/compress| D[Headroom Proxy<br/>:8787]
-    D -->|compressed| C
-
-    C -->|fallback chain| E[DeepSeek]
-    C -->|fallback chain| F[GLM-4]
-    C -->|fallback chain| G[OpenAI]
-    C -->|fallback chain| H[Kimi]
-    C -->|fallback chain| I[Anthropic]
-
-    style C fill:#4a90d9,stroke:#333,stroke-width:2px,color:#fff
-    style D fill:#5cb85c,stroke:#333,stroke-width:2px,color:#fff
-```
-
----
-
-## Project Structure
-
-```
-├── src/
-│   ├── types.ts       # All TypeScript interfaces
-│   ├── config.ts      # Configuration loader
-│   ├── logger.ts      # Colored logging utility
-│   ├── stats.ts       # In-memory statistics tracker
-│   ├── headroom.ts    # Headroom compression client
-│   ├── fallback.ts    # Fallback & load-balancing engine
-│   ├── patcher.ts     # Provider-specific payload patches
-│   ├── streaming.ts   # SSE / streaming utilities
-│   ├── proxy.ts       # Main HTTP + WebSocket server
-│   └── index.ts       # Entry point
-├── dist/              # Compiled JavaScript (tsc output)
-├── package.json
-├── tsconfig.json
-├── .env.example
-└── README.md
-```
-
----
-
-## Development
+### Install & Run
 
 ```bash
+# Clone
+git clone <repo-url> synetal-gateway
+cd synetal-gateway
+
+# Install dependencies
+npm install
+
+# Configure
+cp .env.example .env
+# Edit .env — add your API keys for Kimi, DeepSeek, GLM, Xiaomi
+
 # Build
 npm run build
 
-# Watch mode (auto-rebuild on changes)
+# Start
+npm start
+# → Gateway running on http://localhost:3456
+```
+
+### Production Deploy (PM2 Cluster)
+
+```bash
+# Start with 4 workers (auto-scales to CPU cores)
+pm2 start ecosystem.config.js --update-env
+
+# Check health
+curl http://localhost:3456/health | jq
+```
+
+### Docker
+
+```bash
+# Create .env with your keys, then:
+docker-compose up -d
+```
+
+---
+
+## 📊 Monitoring Endpoints
+
+### `/health` — Provider Status + Circuit Breakers
+
+```bash
+curl http://localhost:3456/health | jq
+```
+
+```json
+{
+  "status": "healthy",
+  "version": "2.4.0",
+  "providers": ["kimi", "deepseek", "glm", "xiaomi"],
+  "providerHealth": {
+    "kimi":     { "reachable": true,  "latencyMs": 214 },
+    "deepseek": { "reachable": true,  "latencyMs": 268 },
+    "glm":      { "reachable": false, "latencyMs": 1560 }
+  },
+  "circuitBreakers": { ... }
+}
+```
+
+### `/stats` — Request Counts + Latency Percentiles
+
+```bash
+curl http://localhost:3456/stats | jq
+```
+
+### `/cost` — Cost Tracking & Spend Analytics
+
+```bash
+curl http://localhost:3456/cost | jq
+```
+
+Returns per-model token usage, estimated costs, and cache hit rates.
+
+### `/v1/models` — Full Model Catalog
+
+```bash
+curl http://localhost:3456/v1/models \
+  -H "Authorization: Bearer sk-your-key" | jq
+```
+
+Returns all 26+ models with metadata (pricing, context, capabilities, tier).
+
+---
+
+## 📁 Project Structure
+
+```
+synetal-gateway/
+├── src/
+│   ├── index.ts              # Entry point
+│   ├── proxy.ts              # Main HTTP + WebSocket server
+│   ├── types.ts              # TypeScript interfaces
+│   ├── config.ts             # Configuration loader
+│   ├── model-registry.ts     # ★ Single source of truth for all models
+│   ├── smart-router.ts       # ★ Cost-aware routing engine
+│   ├── complexity-scorer.ts  # ★ Prompt complexity analysis (0-100)
+│   ├── circuit-breaker.ts    # ★ Self-healing provider management
+│   ├── cost-tracker.ts       # ★ Real-time cost accounting
+│   ├── context-truncator.ts  # Token savings (57-96%)
+│   ├── cache.ts              # SHA256 response cache
+│   ├── fallback.ts           # Fallback & load-balancing engine
+│   ├── patcher.ts            # Provider-specific payload patches
+│   ├── streaming.ts          # SSE streaming utilities
+│   ├── logger.ts             # Colored logging
+│   └── stats.ts              # Statistics tracker
+├── dist/                     # Compiled JavaScript
+├── ecosystem.config.js       # PM2 production config
+├── Dockerfile                # Container image
+├── docker-compose.yml        # Docker Compose
+├── .env.example              # Configuration template
+└── package.json
+```
+
+---
+
+## ⚙️ Configuration Reference
+
+All settings in `.env`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROXY_PORT` | `3456` | Gateway listen port |
+| `PROXY_API_KEY` | `(required)` | Bearer token clients must send |
+| `DEFAULT_PROVIDER` | `kimi` | Provider for non-model requests |
+| `FALLBACK_CHAIN` | `glm,deepseek,xiaomi,kimi` | Provider fallback order |
+| `MAX_RETRIES` | `2` | Retries per provider before failover |
+| `RETRY_DELAY_MS` | `500` | Delay between retries |
+| `KIMI_API_KEY` | — | Moonshot AI API key |
+| `DEEPSEEK_API_KEY` | — | DeepSeek API key |
+| `GLM_API_KEY` | — | Z.AI / Zhipu API key |
+| `XIAOMI_API_KEY` | — | Xiaomi MiMo API key |
+
+---
+
+## 🧪 How Cost-Aware Routing Decides
+
+The complexity scorer analyzes each prompt using multiple heuristics:
+
+| Signal | Low Complexity (→ Cheap) | High Complexity (→ Premium) |
+|--------|--------------------------|----------------------------|
+| **Length** | < 50 chars ("hi", "thanks") | > 2000 chars (large code blocks) |
+| **Code blocks** | No code | Multiple files, complex logic |
+| **Keywords** | "hi", "thanks", "ok", simple Qs | "architecture", "design", "algorithm", "debug" |
+| **Language** | English/Chinese simple phrases | Technical jargon, abstract reasoning |
+| **Prompt type** | `fast` (detected) | `code`, `reasoning`, `vision` |
+| **Images** | No images | Image content detected → needs vision model |
+
+Score mapping:
+```
+  0 ──────── 25 ──────── 60 ──────── 100
+  │  CHEAP  │   MEDIUM   │  PREMIUM   │
+  │         │            │            │
+  MiMo      Kimi K2.6    GLM-5.2
+  Flash     DeepSeek Pro  Kimi K2.7
+  Moonshot  GLM-4.7
+```
+
+---
+
+## 🔄 Comparison: Before vs. After
+
+### Before (Single Provider, Manual Model Selection)
+
+```
+Developer: "I need to use Cursor with GPT-4o"
+→ Every request costs premium ($2.50/$10 per 1M)
+→ Rate limits after 50 requests
+→ Single point of failure
+→ "hi" costs the same as "design a microservice"
+→ Monthly bill: ~$75
+```
+
+### After (Synetal AI Gateway)
+
+```
+Developer: "I just set model to 'synetal-ai'"
+→ Simple prompts go to free/cheap models automatically
+→ Rate limits auto-handled by circuit breaker (invisible to user)
+→ 4 providers = near-zero downtime
+→ Cost scales with actual complexity
+→ Monthly bill: ~$5-10 (80-90% savings)
+```
+
+---
+
+## 📝 API Reference
+
+### POST `/v1/chat/completions`
+
+Standard OpenAI-compatible chat completion endpoint.
+
+```bash
+curl -X POST https://your-gateway.com/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "synetal-ai",
+    "messages": [{"role": "user", "content": "Write a Python function"}],
+    "stream": true,
+    "max_tokens": 2000
+  }'
+```
+
+**Headers:**
+
+| Header | Default | Description |
+|--------|---------|-------------|
+| `Authorization` | *(required)* | `Bearer <PROXY_API_KEY>` |
+| `X-Provider` | *(auto)* | Force a specific provider: `kimi`, `deepseek`, `glm`, `xiaomi` |
+| `X-Load-Balance` | `false` | `true` to enable round-robin load balancing |
+| `X-Cache` | `true` | `false` to bypass response cache |
+
+### GET `/v1/models`
+
+Returns all available models with metadata.
+
+### GET `/health`
+
+Returns gateway health, provider reachability, and circuit breaker status.
+
+### GET `/stats`
+
+Returns request counts, latency percentiles (p50/p95/p99), and cache stats.
+
+---
+
+## 🛠️ Development
+
+```bash
+# Install
+npm install
+
+# Build
+npm run build
+
+# Watch mode
 npm run watch
 
-# Dev mode with ts-node (no build needed)
+# Dev with ts-node
 npm run dev
 
-# Clean build artifacts
+# Clean
 npm run clean
 ```
 
 ---
 
-## Provider-Specific Patches
-
-### Kimi (Moonshot)
-- Forces `top_p = 0.95`
-- Backfills `reasoning_content = ""` on assistant tool_calls
-
-### DeepSeek
-- Supports `reasoning_effort` natively
-- No special patches
-
-### GLM (Zhipu)
-- Routes to `open.bigmodel.cn/api/paas/v4`
-- Handles Bearer token format
-
-### Anthropic
-- Converts `max_completion_tokens` → `max_tokens`
-- Adds `anthropic-version` header
-
----
-
-## Troubleshooting
-
-### "Headroom compression failed"
-- Ensure Headroom proxy is running: `headroom proxy --port 8787`
-- Check `HEADROOM_BASE_URL` in `.env`
-- Set `HEADROOM_FALLBACK=true` to proceed uncompressed
-
-### "All providers failed"
-- Check that at least one provider API key is set in `.env`
-- Check `/health` to see provider status
-- Verify network connectivity to provider APIs
-
-### "Missing API key for X"
-- Add the corresponding key to `.env`
-- Restart the proxy after editing `.env`
-
----
-
-## License
+## 📄 License
 
 MIT

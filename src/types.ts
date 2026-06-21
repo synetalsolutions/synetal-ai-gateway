@@ -1,5 +1,5 @@
 /**
- * Core types for Multi-Model Headroom Proxy
+ * Core types for Synetal AI Gateway
  */
 
 export type ProviderKey = "kimi" | "deepseek" | "glm" | "openai" | "anthropic" | "xiaomi";

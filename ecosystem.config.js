@@ -6,11 +6,8 @@ module.exports = {
       cwd: '/www/wwwroot/copilot.synetal.com',
       env: {
         NODE_ENV: 'production',
-        HEADROOM_ENABLED: 'false',
         PROXY_PORT: '3456',
         PROXY_API_KEY: 'REDACTED-PROXY-KEY',
-        PREPROCESS_ENABLED: 'false',
-        PREPROCESS_MODEL: 'deepseek-v4-flash'
       },
       instances: 'max',
       exec_mode: 'cluster',

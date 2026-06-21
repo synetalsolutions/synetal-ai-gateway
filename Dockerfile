@@ -1,5 +1,5 @@
-# Multi-Model Headroom Proxy — Docker Image
-# Supports: Kimi, DeepSeek, GLM, OpenAI, Anthropic + Headroom compression
+# Synetal AI Gateway — Docker Image
+# Cost-aware multi-model AI gateway: Kimi, DeepSeek, GLM, Xiaomi
 
 FROM node:22-alpine AS builder
 

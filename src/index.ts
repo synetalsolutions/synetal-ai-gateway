@@ -1,5 +1,5 @@
 /**
- * Multi-Model Headroom Proxy v2.0.0
+ * Synetal AI Gateway v2.4.0
  * Entry point — imports and starts the proxy server
  */
 

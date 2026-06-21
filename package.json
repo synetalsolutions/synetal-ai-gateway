@@ -1,37 +1,38 @@
 {
-  "name": "multi-model-headroom-proxy",
-  "version": "2.0.0",
-  "description": "Multi-model LLM proxy with Headroom context compression, fallback, load-balancing, and WebSocket streaming",
-  "main": "dist/proxy.js",
+  "name": "synetal-ai-gateway",
+  "version": "2.4.0",
+  "description": "Cost-aware multi-model AI gateway — smart routing, circuit breaker, 26+ models from 4 providers, OpenAI-compatible",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/proxy.js",
-    "start:headroom": "headroom proxy --port 8787 & npm start",
-    "dev": "ts-node src/proxy.ts",
-    "dev:headroom": "headroom proxy --port 8787 & npm run dev",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
     "watch": "tsc --watch",
     "clean": "rm -rf dist"
   },
   "keywords": [
     "llm",
     "proxy",
-    "headroom",
-    "compression",
+    "gateway",
     "openai",
     "kimi",
     "deepseek",
     "glm",
+    "mimo",
+    "xiaomi",
     "multi-model",
+    "smart-routing",
     "fallback",
     "load-balancing",
     "websocket",
-    "streaming"
+    "streaming",
+    "cost-aware",
+    "circuit-breaker"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "dotenv": "^17.4.2",
-    "headroom-ai": "^0.22.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {

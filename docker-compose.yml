@@ -1,49 +1,21 @@
 version: "3.8"
 
 services:
-  headroom:
-    image: ghcr.io/chopratejas/headroom:latest
-    container_name: headroom-proxy
-    ports:
-      - "8787:8787"
-    environment:
-      - HEADROOM_PORT=8787
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8787/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-
-  multi-model-proxy:
+  synetal-gateway:
     build: .
-    container_name: multi-model-proxy
+    container_name: synetal-gateway
     ports:
       - "3456:3456"
     environment:
       - PROXY_PORT=3456
-      - HEADROOM_ENABLED=true
-      - HEADROOM_BASE_URL=http://headroom:8787
-      - HEADROOM_MODEL=gpt-4o
-      - HEADROOM_FALLBACK=true
+      - PROXY_API_KEY=${PROXY_API_KEY:-REDACTED-PROXY-KEY}
       - DEFAULT_PROVIDER=kimi
-      - FALLBACK_CHAIN=deepseek,glm,openai
+      - FALLBACK_CHAIN=glm,deepseek,xiaomi,kimi
       - MAX_RETRIES=2
       - RETRY_DELAY_MS=500
       # Add your API keys below or use .env file
       - KIMI_API_KEY=${KIMI_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GLM_API_KEY=${GLM_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    depends_on:
-      headroom:
-        condition: service_healthy
+      - XIAOMI_API_KEY=${XIAOMI_API_KEY}
     restart: unless-stopped
-
-  # Optional: Redis for shared stats persistence
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: proxy-redis
-  #   ports:
-  #     - "6379:6379"
