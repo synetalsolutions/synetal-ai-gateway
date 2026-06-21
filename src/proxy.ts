@@ -195,15 +195,16 @@ function mapModelForProvider(model: string, provider: ProviderKey): string {
     kimi: "kimi-k2.7-code",
     deepseek: "deepseek-chat",
     xiaomi: "mimo-v2.5-pro",
-    glm: "glm-4-flash",
+    glm: "glm-5.2",
     openai: "gpt-4o",
     anthropic: "claude-sonnet-4-5-20250929",
   };
 
-  // Models are already namespaced: kimi-* → kimi, deepseek-* → deepseek, mimo-* → xiaomi
+  // Models are already namespaced: kimi-* → kimi, deepseek-* → deepseek, mimo-* → xiaomi, glm-* → glm
   if (provider === "kimi" && model.startsWith("kimi-")) return model;
   if (provider === "deepseek" && model.startsWith("deepseek-")) return model;
   if (provider === "xiaomi" && (model.startsWith("mimo-") || model.startsWith("MiMo-"))) return model;
+  if (provider === "glm" && model.startsWith("glm-")) return model;
 
   // Model doesn't belong to this provider — use the provider's default equivalent
   return defaultModel[provider] || model;

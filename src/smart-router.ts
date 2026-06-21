@@ -112,15 +112,18 @@ export function routePrompt(
     code: [
       { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
       { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Code → deepseek-v4-pro" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Code → glm-5.2" },
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Code → deepseek-v4-flash" },
       { provider: "xiaomi",   model: "mimo-v2.5-pro",     reason: "Code → mimo-v2.5-pro" },
     ],
     reasoning: [
       { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Reasoning → kimi-k2.7-code" },
     ],
     vision: [
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Vision → glm-5.2" },
     ],
     fast: [
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
@@ -128,6 +131,7 @@ export function routePrompt(
     ],
     general: [
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      { provider: "glm",      model: "glm-5.2",           reason: "General → glm-5.2" },
       { provider: "deepseek", model: "deepseek-v4-pro",    reason: "General → deepseek-v4-pro" },
       { provider: "deepseek", model: "deepseek-v4-flash",  reason: "General → deepseek-v4-flash" },
       { provider: "xiaomi",   model: "mimo-v2.5-pro",      reason: "General → mimo-v2.5-pro" },
