@@ -184,6 +184,30 @@ async function executeProviderRequest(
   }
 }
 
+/**
+ * Map a model name to the closest equivalent supported by a given provider.
+ * This prevents sending `deepseek-v4-flash` to Kimi (which only has kimi-* models).
+ */
+function mapModelForProvider(model: string, provider: ProviderKey): string {
+  // Default model per provider — always safe
+  const defaultModel: Record<ProviderKey, string> = {
+    kimi: "kimi-k2.7-code",
+    deepseek: "deepseek-chat",
+    xiaomi: "mimo-v2.5-pro",
+    glm: "glm-4-flash",
+    openai: "gpt-4o",
+    anthropic: "claude-sonnet-4-5-20250929",
+  };
+
+  // Models are already namespaced: kimi-* → kimi, deepseek-* → deepseek, mimo-* → xiaomi
+  if (provider === "kimi" && model.startsWith("kimi-")) return model;
+  if (provider === "deepseek" && model.startsWith("deepseek-")) return model;
+  if (provider === "xiaomi" && (model.startsWith("mimo-") || model.startsWith("MiMo-"))) return model;
+
+  // Model doesn't belong to this provider — use the provider's default equivalent
+  return defaultModel[provider] || model;
+}
+
 // ─── Fallback Chain Execution ───────────────────────────────────────────────
 async function executeWithFallback(
   queue: ProviderKey[],
@@ -206,9 +230,22 @@ async function executeWithFallback(
     const provider = queue[i];
     const attemptStart = Date.now();
 
-    logRequest(ctx.requestId, provider, payload.model, i === 0 ? "Primary" : `Fallback[${i}]`);
+    // 🔑 Re-map model for THIS provider so fallback providers get their native model
+    const providerPayload: ChatCompletionPayload = JSON.parse(JSON.stringify(payload));
+    const mappedModel = mapModelForProvider(payload.model, provider);
+    if (mappedModel !== payload.model) {
+      log("info", `[${ctx.requestId}] Model mapped for ${provider}: ${payload.model} → ${mappedModel}`);
+    }
+    providerPayload.model = mappedModel;
 
-    const result = await executeProviderRequest(provider, payload, reqHeaders, compressionResult);
+    // Strip `reasoning_effort` for providers that reject it (kimi, xiaomi)
+    if ((provider === "kimi" || provider === "xiaomi") && providerPayload.reasoning_effort) {
+      delete providerPayload.reasoning_effort;
+    }
+
+    logRequest(ctx.requestId, provider, providerPayload.model, i === 0 ? "Primary" : `Fallback[${i}]`);
+
+    const result = await executeProviderRequest(provider, providerPayload, reqHeaders, compressionResult);
     const latencyMs = Date.now() - attemptStart;
 
     attempts.push({

@@ -47,7 +47,18 @@ export function patchPayload(
     }
 
     case "deepseek": {
-      // DeepSeek — no token limits, cheap enough for max output
+      // DeepSeek thinking-mode: remove reasoning_content from non-assistant messages.
+      // Cursor/clients send reasoning_content in user/system messages which
+      // DeepSeek rejects with "The reasoning_content in the thinking mode must
+      // be passed back to the API." Only ASSISTANT messages are allowed to
+      // carry it (tool-call continuations).
+      if (Array.isArray(p.messages)) {
+        for (const msg of p.messages) {
+          if (msg.role !== "assistant") {
+            delete msg.reasoning_content;
+          }
+        }
+      }
       break;
     }
 
