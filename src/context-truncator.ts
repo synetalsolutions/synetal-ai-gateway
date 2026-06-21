@@ -45,27 +45,40 @@ function extractContentText(content: unknown): string {
   return String(content);
 }
 
-/** Provider context limits (in tokens). */
+/**
+ * Provider context limits (in tokens).
+ * Values verified against official documentation (2026-06-21):
+ *  - GLM-5.2/5.1/5:     Z.AI docs → "supporting up to 1M context"
+ *  - DeepSeek V4 Pro/Flash: api-docs.deepseek.com → "CONTEXT LENGTH: 1M, MAX OUTPUT 384K"
+ *  - Kimi K2.6:         platform.kimi.ai → "256K context length"
+ *  - Xiaomi MiMo-7B:    github.com/XiaomiMiMo → trained on 32K-48K RL window
+ *                       (7B open-weight model, no official hosted API — very limited)
+ * Conservative 0.90 safety margin applied at runtime so we never exceed.
+ */
 const PROVIDER_CONTEXT_LIMITS: Record<string, number> = {
   kimi: 262144,
+  "kimi-k2.6": 262144,
   "kimi-k2.7-code": 262144,
-  deepseek: 65536,
-  "deepseek-chat": 65536,
-  "deepseek-v4-flash": 65536,
+  deepseek: 1000000,
+  "deepseek-chat": 1000000,   // deprecated alias for deepseek-v4-flash
+  "deepseek-v4-pro": 1000000,
+  "deepseek-v4-flash": 1000000,
   xiaomi: 32768,
   "mimo-v2.5-pro": 32768,
-  glm: 128000,
-  "glm-5.2": 128000,
-  "glm-5.1": 128000,
-  "glm-5": 128000,
+  glm: 1000000,
+  "glm-5.2": 1000000,
+  "glm-5.1": 1000000,
+  "glm-5": 1000000,
   "glm-4-flash": 128000,
   openai: 128000,
   "gpt-4o": 128000,
   anthropic: 200000,
 };
 
-/** Tokens reserved for the model's response (output budget). */
-const OUTPUT_RESERVE_TOKENS = 16384;
+/** Tokens reserved for the model's response (output budget).
+ * DeepSeek V4 max output is 384K, GLM/Kimi are typically 32-64K. Use a
+ * conservative default that leaves room for full code generation. */
+const OUTPUT_RESERVE_TOKENS = 32768;
 
 /** Safety margin multiplier — our estimate must be this much UNDER the limit
  * to account for tokenizer differences, JSON serialization overhead, etc.
