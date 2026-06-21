@@ -107,39 +107,90 @@ export function routePrompt(
     };
   }
 
-  // Round-robin pools: each prompt type gets multiple provider options
-  // Note: Xiaomi (mimo, 32K context) excluded from code/reasoning/general pools.
-  // Cursor sends 450K+ token conversations with 22K token tool definitions —
-  // Xiaomi's tiny context gets emergency-truncated to 20 tokens (useless).
-  // Only kept in "fast" pool for tiny/simple requests.
+  // ── Weighted Load-Balancing Pools ────────────────────────────────────────
+  // Models are weighted by "power" (context size + capability) so that for
+  // Cursor development work, the strongest models handle most requests.
+  //
+  // Power tiers for Cursor dev:
+  //   kimi-k2.7-code   (262K ctx, code-specialized)  → tier 1 (most traffic)
+  //   glm-5.2          (128K ctx, strong reasoning)  → tier 2
+  //   deepseek-v4-pro   (65K ctx, good reasoning)     → tier 3
+  //   deepseek-v4-flash (65K ctx, fast but weaker)    → tier 4 (least traffic)
+  //
+  // Array duplication = weight multiplier. E.g., kimi appearing 4/10 slots = 40%.
+  // xiaomi (mimo, 32K) excluded — context too small for Cursor (truncated to junk).
   const pools: Record<PromptType, Array<{ provider: ProviderKey; model: string; reason: string }>> = {
     code: [
+      // kimi 40% — best for code (huge context, code-specialized)
       { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
-      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Code → deepseek-v4-pro" },
+      { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
+      // glm 25% — strong general model, good context
       { provider: "glm",      model: "glm-5.2",           reason: "Code → glm-5.2" },
-      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Code → kimi-k2.7-code" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Code → glm-5.2" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Code → glm-5.2" },
+      // deepseek-pro 20% — good but 65K context gets truncated
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Code → deepseek-v4-pro" },
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Code → deepseek-v4-pro" },
+      // deepseek-flash 15% — fast fallback
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Code → deepseek-v4-flash" },
     ],
     reasoning: [
+      // deepseek-pro 35% — strongest pure reasoning
       { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
+      // glm 35% — equally strong reasoning + larger context
       { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
+      // kimi 30% — big context backup
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Reasoning → kimi-k2.7-code" },
-      { provider: "deepseek", model: "deepseek-v4-pro",    reason: "Reasoning → deepseek-v4-pro" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Reasoning → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Reasoning → kimi-k2.7-code" },
     ],
     vision: [
+      // kimi 60% — large context handles image-rich conversations best
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
+      // glm 40% — native vision capability
       { provider: "glm",      model: "glm-5.2",           reason: "Vision → glm-5.2" },
-      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
+      { provider: "glm",      model: "glm-5.2",           reason: "Vision → glm-5.2" },
     ],
     fast: [
+      // Simple/quick queries — prioritize speed over power
+      // deepseek-flash 40% — fastest
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
+      { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
+      { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
+      { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
+      // glm-flash 40% — fast + decent quality
       { provider: "glm",      model: "glm-4-flash",       reason: "Fast → glm-4-flash" },
+      { provider: "glm",      model: "glm-4-flash",       reason: "Fast → glm-4-flash" },
+      { provider: "glm",      model: "glm-4-flash",       reason: "Fast → glm-4-flash" },
+      { provider: "glm",      model: "glm-4-flash",       reason: "Fast → glm-4-flash" },
+      // kimi 20% — if flash models are busy
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Fast → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Fast → kimi-k2.7-code" },
     ],
     general: [
+      // kimi 35% — versatile, large context
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      // glm 30% — strong all-rounder
       { provider: "glm",      model: "glm-5.2",           reason: "General → glm-5.2" },
-      { provider: "deepseek", model: "deepseek-v4-pro",    reason: "General → deepseek-v4-pro" },
-      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
+      { provider: "glm",      model: "glm-5.2",           reason: "General → glm-5.2" },
+      { provider: "glm",      model: "glm-5.2",           reason: "General → glm-5.2" },
+      // deepseek-pro 20% — good reasoning
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "General → deepseek-v4-pro" },
+      { provider: "deepseek", model: "deepseek-v4-pro",   reason: "General → deepseek-v4-pro" },
+      // deepseek-flash 15% — fast supplementary
       { provider: "deepseek", model: "deepseek-v4-flash",  reason: "General → deepseek-v4-flash" },
     ],
   };
