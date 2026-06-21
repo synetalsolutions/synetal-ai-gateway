@@ -1,515 +1,190 @@
-# 🚀 Custom AI Gateway Proxy — Usage Guide
+# 🚀 Synetal AI Gateway v2.4.0 — Quick Start Guide
 
-**Proxy URL:** `https://copilot.synetal.com`  
-**WebSocket:** `wss://copilot.synetal.com/ws`  
-**API Key:** `REDACTED-PROXY-KEY`  
-**Version:** `v2.2.0`  
-**Features:** Fallback, Load Balancing, Caching, Rate Limiting, Smart Routing, Cost Tracking, Auth, **Multi-Model**
+> **Full docs:** See [README.md](README.md) for architecture, innovation, and deep-dive.
+> This is a concise, copy-paste-ready setup guide.
 
----
-
-## ⚡ AI Gateway Features (Built-in)
-
-| Feature | How It Works | Control |
-|---------|-------------|---------|
-| **🧠 Smart Routing** | Auto-detects prompt type (code/reasoning/vision/fast) and picks best model | Automatic — no config needed |
-| **🔄 Fallback** | If provider fails, automatically tries next provider | Automatic — configurable chain |
-| **⚖️ Load Balancing** | Distributes requests across provider pool | `X-Load-Balance: true` header |
-| **💾 Caching** | SHA256-based response cache, 5min TTL | Automatic + `X-Cache: true/false` |
-| **🚦 Rate Limiting** | 120 requests/min sliding window per IP | Automatic |
-| **💰 Cost Tracking** | Tracks spend per request | Automatic — check `/stats` |
-| **🎯 Multi-Model** | Send same prompt to multiple models simultaneously | `POST /v1/chat/completions/multi` |
+**Gateway URL (self-hosted):** `https://your-gateway.com`  
+**Local dev:** `http://localhost:3456`  
+**API Key:** Your own generated `PROXY_API_KEY` (see below)
 
 ---
 
-## ✅ Supported Providers & Models
+## 📋 Prerequisites
 
-| Provider | Working Models | Header | Best For |
-|----------|---------------|--------|----------|
-| **Kimi** (Moonshot) | `moonshot-v1-auto`, `kimi-k2.5`, `kimi-k2.6`, `kimi-k2.7-code` | `X-Provider: kimi` | Coding, General |
-| **DeepSeek** | `deepseek-v4-pro`, `deepseek-v4-flash` | `X-Provider: deepseek` | Reasoning, Math |
-| **Xiaomi** (MiMo) | `mimo-v2.5-pro`, `mimo-v2.5`, `mimo-v2-pro` | `X-Provider: xiaomi` | Fast responses |
-| **GLM** (Zhipu) | `glm-5.2` (need balance) | `X-Provider: glm` | — |
-
-### 🧠 Smart Auto-Routing (Recommended!)
-
-**Kuch bhi header nahi dalna** — proxy automatically detect karega:
-
-| Prompt Type | Detected Keywords | Routes To |
-|-------------|-------------------|-----------|
-| **Code** | `code`, `function`, `bug`, `debug`, `python`, `javascript` | `kimi-k2.7-code` |
-| **Reasoning** | `explain`, `why`, `how`, `solve`, `math`, `logic` | `deepseek-v4-pro` |
-| **Vision** | `image`, `picture`, `describe`, `see` | `moonshot-v1-32k-vision-preview` |
-| **Fast** | Short prompts, simple questions | `deepseek-v4-flash` |
-| **General** | Everything else | `kimi-k2.6` |
+- Node.js 18+
+- At least one LLM provider API key (Kimi, DeepSeek, GLM, or Xiaomi MiMo)
 
 ---
 
-## 🔧 1. Cursor IDE Setup (Recommended)
+## 🛠️ Step 1 — Get the Code
 
-### Step 1: Open Cursor Settings
-`Ctrl+Shift+P` → `Cursor Settings` → `Models`
+```bash
+git clone https://github.com/synetalsolutions/synetal-copilot.git
+cd synetal-copilot
+npm install
+```
 
-### Step 2: Add OpenAI-Compatible Endpoint
+## 🔑 Step 2 — Configure Secrets
 
-In **Cursor Settings** → **OpenAI API** tab:
+```bash
+# 1. Create your secrets file
+cp .env.example .env
+
+# 2. Generate a secure proxy key (DO NOT reuse the example value)
+openssl rand -hex 32
+# → e.g. d7073400da5167cc9944dac11018c37d5291ff47bf1425199b6d...
+
+# 3. Edit .env — paste the generated key and add provider keys
+nano .env
+```
+
+Your `.env` should contain:
+
+```ini
+PROXY_API_KEY=<your-generated-32-byte-hex-key>
+
+# Add at least one provider key (comment out what you don't have)
+KIMI_API_KEY=sk-xxxx         # https://platform.moonshot.cn/
+DEEPSEEK_API_KEY=sk-xxxx     # https://platform.deepseek.com/
+GLM_API_KEY=xxxx             # https://z.ai/
+XIAOMI_API_KEY=tp-xxxx       # https://xiaomimimo.com/
+```
+
+> ⚠️ **Never commit `.env` to git.** It's already in `.gitignore`.
+
+## 🏗️ Step 3 — Build & Run
+
+```bash
+npm run build
+npm start
+```
+
+Or with PM2 (production, auto-clustered to CPU cores):
+
+```bash
+pm2 start ecosystem.config.js --update-env
+curl http://localhost:3456/health | jq
+```
+
+Or with Docker:
+
+```bash
+docker-compose up -d
+```
+
+---
+
+## 💻 IDE Integration
+
+The gateway is OpenAI-compatible. Any IDE that supports custom OpenAI endpoints works out of the box.
+
+### Cursor
+
+`Ctrl+Shift+P` → `Cursor Settings` → **OpenAI API**
 
 | Setting | Value |
 |---------|-------|
-| Base URL | `https://copilot.synetal.com/v1` |
-| API Key | `REDACTED-PROXY-KEY` |
-| Model | `deepseek-v4-pro` or any model name |
+| Base URL | `https://your-gateway.com/v1` |
+| API Key | *Your `PROXY_API_KEY`* |
 
-### Step 3: Use Custom Headers (for Provider Selection)
+Recommended model alias in Cursor dropdown: **`synetal-ai`** (auto-route).
 
-Create file: `~/.cursor/mcp.json` or use Cursor's **Custom Headers**:
-
-```json
-{
-  "openai": {
-    "baseURL": "https://copilot.synetal.com/v1",
-    "apiKey": "REDACTED-PROXY-KEY",
-    "defaultHeaders": {
-      "X-Provider": "deepseek"
-    }
-  }
-}
-```
-
-### 🎯 Smart Routing in Cursor (No Header Needed!)
-
-Just use `synetal-ai` model — proxy **auto-detects** best provider:
-```
-Model: synetal-ai         → Smart routing (recommended!)
-Model: kimi-k2.7-code     → Kimi code model
-Model: deepseek-v4-pro    → DeepSeek reasoning
-```
-
----
-
-## 🔧 2. VS Code Copilot Setup
-
-### Method A: Custom Endpoint (settings.json)
-
-Open VS Code → `Ctrl+Shift+P` → `Preferences: Open User Settings (JSON)`
+### VS Code Copilot
 
 ```json
 {
   "github.copilot.advanced": {
-    "debug.overrideEngine": "deepseek-v4-pro",
-    "debug.testOverrideProxyUrl": "https://copilot.synetal.com",
-    "debug.overrideProxyUrl": "https://copilot.synetal.com"
+    "debug.overrideEngine": "synetal-ai",
+    "debug.overrideProxyUrl": "https://your-gateway.com"
   }
 }
 ```
 
-> ⚠️ **Note:** VS Code Copilot may not support custom headers. Use **Cursor** or **Continue.dev** for full multi-model support.
+> Note: VS Code Copilot doesn't support custom auth headers well. Cursor, Continue.dev, and Cline offer the best experience.
 
----
+### Continue.dev
 
-## 🔧 3. Continue.dev Extension (VS Code)
-
-Install **Continue.dev** extension, then in `~/.continue/config.json`:
+In `~/.continue/config.json`:
 
 ```json
 {
   "models": [
     {
-      "title": "DeepSeek",
+      "title": "Synetal Auto-Route",
       "provider": "openai",
-      "model": "deepseek-v4-pro",
-      "apiBase": "https://copilot.synetal.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY",
-      "requestOptions": {
-        "headers": {
-          "X-Provider": "deepseek"
-        }
-      }
-    },
-    {
-      "title": "Xiaomi MiMo",
-      "provider": "openai",
-      "model": "mimo-v2.5-pro",
-      "apiBase": "https://copilot.synetal.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY",
-      "requestOptions": {
-        "headers": {
-          "X-Provider": "xiaomi"
-        }
-      }
-    },
-    {
-      "title": "Kimi K2.6",
-      "provider": "openai",
-      "model": "kimi-k2.6",
-      "apiBase": "https://copilot.synetal.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY",
-      "requestOptions": {
-        "headers": {
-          "X-Provider": "kimi"
-        }
-      }
+      "model": "synetal-ai",
+      "apiBase": "https://your-gateway.com/v1",
+      "apiKey": "<YOUR_PROXY_API_KEY>"
     }
   ]
 }
 ```
 
----
+### Cline / Roo Code
 
-## 🔧 4. Cline / Roo Code (VS Code)
-
-In Cline settings → **API Provider** → **OpenAI Compatible**:
-
-| Field | Value |
-|-------|-------|
-| Base URL | `https://copilot.synetal.com/v1` |
-| API Key | `REDACTED-PROXY-KEY` |
-| Model ID | `deepseek-v4-pro` |
-| Custom Headers | `{"X-Provider": "deepseek"}` |
+**API Provider** → *OpenAI Compatible*:
+- Base URL: `https://your-gateway.com/v1`
+- API Key: *Your `PROXY_API_KEY`*
+- Model: `synetal-ai`
 
 ---
 
-## 🔧 5. CLI / curl Usage
+## 🧠 Smart Routing Modes
+
+You control routing by selecting different model names. No special headers needed.
+
+| Model Name | What It Does |
+|------------|--------------|
+| `synetal-ai` | **Auto-route** — cost-aware routing (recommended) |
+| `auto` | Alias for `synetal-ai` |
+| `gpt-4o`, `gpt-4`, `gpt-3.5-turbo` | Aliases for Cursor compatibility → auto-route |
+| `glm-5.2`, `kimi-k2.7-code`, etc. | **Direct route** to a specific model — bypasses smart routing |
+
+### Force a Specific Provider (optional)
+
+Add a `X-Provider` header: `kimi`, `deepseek`, `glm`, or `xiaomi`. Without it, the gateway picks automatically.
+
+---
+
+## 🔧 Quick API Test
 
 ```bash
-# DeepSeek
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
+curl -X POST https://your-gateway.com/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Provider: deepseek" \
-  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"Hello"}]}'
-
-# Xiaomi MiMo
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Provider: xiaomi" \
-  -d '{"model":"mimo-v2.5-pro","messages":[{"role":"user","content":"Hello"}]}'
-
-# Kimi
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Provider: kimi" \
-  -d '{"model":"synetal-ai","messages":[{"role":"user","content":"Hello"}]}'
-
-# Load Balance (auto-select provider)
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Load-Balance: true" \
-  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"Hello"}]}'
+  -H "Authorization: Bearer <YOUR_PROXY_API_KEY>" \
+  -d '{
+    "model": "synetal-ai",
+    "messages": [{"role": "user", "content": "Write a Python function to check palindromes"}]
+  }'
 ```
 
----
-
-## 🔧 6. Python / OpenAI SDK
+Use this snippet with the Python SDK:
 
 ```python
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://copilot.synetal.com/v1",
-    api_key="REDACTED-PROXY-KEY",  # Proxy API key
-    default_headers={
-        "X-Provider": "deepseek",  # or "xiaomi", "kimi"
-    }
+    base_url="https://your-gateway.com/v1",
+    api_key="<YOUR_PROXY_API_KEY>",
 )
 
-response = client.chat.completions.create(
-    model="deepseek-v4-pro",
-    messages=[{"role": "user", "content": "Hello!"}]
+resp = client.chat.completions.create(
+    model="synetal-ai",
+    messages=[{"role": "user", "content": "Hello"}],
 )
-print(response.choices[0].message.content)
+print(resp.choices[0].message.content)
 ```
 
 ---
 
-## 🔧 7. WebSocket (Real-time Streaming)
+## 📊 Monitoring Endpoints
 
-```javascript
-// API key must be passed as query parameter for WebSocket
-const API_KEY = "REDACTED-PROXY-KEY";
-const ws = new WebSocket(`wss://copilot.synetal.com/ws?token=${API_KEY}`);
-
-ws.onopen = () => {
-  ws.send(JSON.stringify({
-    type: "chat",
-    provider: "deepseek",
-    payload: {
-      model: "deepseek-v4-pro",
-      messages: [{ role: "user", content: "Hello" }],
-      stream: true
-    }
-  }));
-};
-
-ws.onmessage = (e) => {
-  const msg = JSON.parse(e.data);
-  if (msg.type === "stream_chunk") console.log(msg.data);
-};
-```
-
----
-
-## 🔧 8. 🎯 Multi-Model — Ek Prompt, Multiple Models!
-
-**Endpoint:** `POST /v1/chat/completions/multi`
-
-Same prompt ko **multiple models ko ek saath** bhejo aur sabke responses ek saath compare karo!
-
-### curl Example:
-
-```bash
-curl -X POST https://copilot.synetal.com/v1/chat/completions/multi \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Models: kimi:kimi-k2.6,deepseek:deepseek-v4-pro,xiaomi:mimo-v2.5-pro" \
-  -d '{
-    "messages": [{"role": "user", "content": "What is 2+2?"}],
-    "max_tokens": 100
-  }'
-```
-
-### Response Format:
-
-```json
-{
-  "requestId": "b4d3d873",
-  "models_requested": 3,
-  "models_responded": 3,
-  "responses": [
-    {
-      "provider": "kimi",
-      "model": "kimi-k2.6",
-      "success": true,
-      "statusCode": 200,
-      "latencyMs": 2050,
-      "content": "4",
-      "usage": { "total_tokens": 68 }
-    },
-    {
-      "provider": "deepseek",
-      "model": "deepseek-v4-pro",
-      "success": true,
-      "statusCode": 200,
-      "latencyMs": 1948,
-      "content": "four",
-      "usage": { "total_tokens": 109 }
-    },
-    {
-      "provider": "xiaomi",
-      "model": "mimo-v2.5-pro",
-      "success": true,
-      "statusCode": 200,
-      "latencyMs": 2100,
-      "content": "Four",
-      "usage": { "total_tokens": 310 }
-    }
-  ]
-}
-```
-
-### How to Specify Models:
-
-**Method 1: Header (comma-separated)**
-```
-X-Models: kimi:kimi-k2.6,deepseek:deepseek-v4-pro,xiaomi:mimo-v2.5-pro
-```
-
-**Method 2: Body (models array)**
-```json
-{
-  "models": ["kimi:kimi-k2.6", "deepseek:deepseek-v4-pro", "xiaomi:mimo-v2.5-pro"],
-  "messages": [{"role": "user", "content": "Hello"}],
-  "max_tokens": 100
-}
-```
-
-### Python Example:
-
-```python
-import requests
-
-resp = requests.post(
-    "https://copilot.synetal.com/v1/chat/completions/multi",
-    headers={
-        "Authorization": "Bearer REDACTED-PROXY-KEY",
-        "X-Models": "kimi:kimi-k2.6,deepseek:deepseek-v4-pro,xiaomi:mimo-v2.5-pro"
-    },
-    json={
-        "messages": [{"role": "user", "content": "Explain recursion simply"}],
-        "max_tokens": 200
-    }
-)
-
-data = resp.json()
-for r in data["responses"]:
-    print(f"\n=== {r['provider']}/{r['model']} ({r['latencyMs']}ms) ===")
-    print(r.get("content") or r.get("reasoning", "(no content)"))
-```
-
-### 🧠 Use Cases:
-
-| Use Case | Benefit |
+| Endpoint | Purpose |
 |----------|---------|
-| **Compare models** | Same prompt → see which model gives best answer |
-| **Ensemble voting** | Multiple models → pick majority answer |
-| **Speed test** | Compare latency across providers |
-| **Quality benchmark** | Test model quality on your prompts |
-| **Fallback verification** | See which models are healthy |
-
-
-
----
-
-## 🎛️ AI Gateway Features — Detailed Usage
-
-### 1. 🧠 Smart Auto-Routing (No Config Needed!)
-
-Bina kisi header ke bhejo — proxy automatically best model select karega:
-
-```bash
-# Ye code prompt hai → automatically kimi-k2.7-code pe jayega
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -d '{
-    "model": "synetal-ai",
-    "messages": [{"role": "user", "content": "Write a Python function to sort a list"}]
-  }'
-
-# Ye reasoning prompt hai → automatically deepseek-v4-pro pe jayega
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -d '{
-    "model": "synetal-ai",
-    "messages": [{"role": "user", "content": "Explain quantum computing in simple terms"}]
-  }'
-```
-
-### 2. ⚖️ Load Balancing
-
-Same request multiple providers mein distribute karne ke liye:
-
-```bash
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Load-Balance: true" \
-  -H "X-Provider: deepseek" \
-  -d '{
-    "model": "deepseek-v4-pro",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'
-```
-
-**Load Balance Groups:**
-- `reasoning`: deepseek → openai → xiaomi
-- `coding`: deepseek → glm → kimi → xiaomi
-- `general`: kimi → deepseek → glm → xiaomi
-- `vision`: openai → glm → xiaomi
-
-### 3. 💾 Cache Control
-
-```bash
-# Force cache read (if available)
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Cache: true" \
-  -d '{...}'
-
-# Skip cache (fresh response)
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Cache: false" \
-  -d '{...}'
-```
-
-Cache: **5 minutes TTL**, SHA256 key based on prompt+model
-
-### 4. 🔄 Fallback Chain
-
-Agar ek provider fail ho, automatically next try hota hai:
-
-**Default Chain:** `deepseek → glm → xiaomi → openai`
-
-```bash
-# GLM balance nahi hai → automatically DeepSeek pe chala jayega
-curl -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Provider: glm" \
-  -d '{
-    "model": "glm-5.2",
-    "messages": [{"role": "user", "content": "Hello"}]
-  }'
-# Response: fallback=true, provider=deepseek
-```
-
-### 5. 🚦 Rate Limit Headers
-
-Response mein rate limit status milta hai:
-
-```bash
-curl -i -X POST https://copilot.synetal.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer REDACTED-PROXY-KEY" \
-  -H "X-Provider: deepseek" \
-  -d '{...}'
-
-# Response headers:
-# X-RateLimit-Limit: 120
-# X-RateLimit-Remaining: 119
-# X-RateLimit-Reset: 60
-```
-
----
-
-## 📊 Check Proxy Status
-
-```bash
-# Health
-curl https://copilot.synetal.com/health | jq .
-
-# Stats (requests, tokens saved, latency)
-curl https://copilot.synetal.com/stats | jq .
-```
-
----
-
-## ⚡ Quick Switch Providers
-
-| Want to use | Change `X-Provider` to | Model Example |
-|-------------|----------------------|---------------|
-| DeepSeek | `deepseek` | `deepseek-v4-pro` |
-| Xiaomi MiMo | `xiaomi` | `mimo-v2.5-pro` |
-| Kimi K2.6 | `kimi` | `kimi-k2.6` |
-| Kimi Auto | `kimi` | `moonshot-v1-auto` |
-
----
-
-## ⚖️ Custom Proxy vs LiteLLM — Konsa Use Kare?
-
-| Feature | Custom Proxy (`/`) | LiteLLM (`/litellm/`) |
-|---------|-------------------|----------------------|
-| **Caching** | ✅ Built-in (5min) | ❌ Disabled |
-| **Rate Limiting** | ✅ 120 RPM | ❌ Not configured |
-| **Smart Routing** | ✅ Auto by prompt | ❌ Manual only |
-| **Cost Tracking** | ✅ Per request | ❌ Not configured |
-| **Fallback Chain** | ✅ Auto-retry | ✅ Configurable |
-| **Load Balancing** | ✅ Per task group | ✅ Built-in router |
-| **WebSocket** | ✅ `/ws` streaming | ❌ HTTP only |
-| **Admin UI** | ❌ None | ✅ Built-in |
-| **Usage Analytics** | ❌ Basic stats | ✅ PostgreSQL DB |
-| **Best For** | Production apps, IDE integration | Testing, analytics |
-
-**👉 Recommendation:**
-- **Development / Production apps** → Custom Proxy (`https://copilot.synetal.com`)
-- **Testing / Admin dashboard** → LiteLLM (`https://copilot.synetal.com/litellm/`)
+| `GET /health` | Provider status, circuit-breaker states, latency |
+| `GET /stats` | Request counts, p50/p95/p99 latencies, cache hit rate |
+| `GET /cost` | Per-model token usage & spend accounting |
+| `GET /v1/models` | Live model catalog with pricing and capabilities |
 
 ---
 
@@ -517,11 +192,9 @@ curl https://copilot.synetal.com/stats | jq .
 
 | Issue | Fix |
 |-------|-----|
-| `401 Unauthorized` | Add `-H "Authorization: Bearer REDACTED-PROXY-KEY"` |
-| "Missing API key" | Proxy auto-uses provider keys from server `.env` |
-| "Invalid model" | Use correct model name from table above |
-| "All providers failed" | Check `https://copilot.synetal.com/health` |
-| Slow responses | Add `X-Load-Balance: true` header |
-| GLM not working | Account has no balance — recharge on z.ai |
-| Custom proxy down | `pm2 restart multi-model-proxy` |
-| LiteLLM down | `pm2 restart litellm-proxy` |
+| `401 Unauthorized` | Confirm your `Authorization: Bearer <PROXY_API_KEY>` header matches `.env` |
+| "PROXY_API_KEY missing" | The server didn't find `.env` — check the file exists in the working directory |
+| "All providers failed" | Check `/health`; all providers may be down or quotas exhausted |
+| `429` from gateway | You hit the per-IP rate limit (120 rpm). Reduce request rate. |
+| No GLM responses | Verify your Z.AI account has balance — `/health` will flag `(unreachable)` |
+| Need admin restart | `pm2 restart synetal-gateway --update-env` |

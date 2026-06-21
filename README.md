@@ -278,7 +278,7 @@ Go to **Cursor Settings** → **OpenAI API Key** section:
 
 | Setting | Value |
 |---------|-------|
-| **API Key** | `REDACTED-PROXY-KEY` |
+| **API Key** | Your self-generated `PROXY_API_KEY` (see [Self-Host](#-quick-start-self-host)) |
 | **Base URL** | `https://your-gateway.com/v1` |
 
 ### Step 3: Pick a Model
@@ -336,21 +336,21 @@ In `~/.continue/config.json`:
       "provider": "openai",
       "model": "synetal-ai",
       "apiBase": "https://your-gateway.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY"
+      "apiKey": "<YOUR_PROXY_API_KEY>"
     },
     {
       "title": "GLM-5.2 Premium",
       "provider": "openai",
       "model": "glm-5.2",
       "apiBase": "https://your-gateway.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY"
+      "apiKey": "<YOUR_PROXY_API_KEY>"
     },
     {
       "title": "Kimi K2.7 Code",
       "provider": "openai",
       "model": "kimi-k2.7-code",
       "apiBase": "https://your-gateway.com/v1",
-      "apiKey": "REDACTED-PROXY-KEY"
+      "apiKey": "<YOUR_PROXY_API_KEY>"
     }
   ]
 }
@@ -363,7 +363,7 @@ In Cline settings → **API Provider** → **OpenAI Compatible**:
 | Field | Value |
 |-------|-------|
 | Base URL | `https://your-gateway.com/v1` |
-| API Key | `REDACTED-PROXY-KEY` |
+| API Key | `<YOUR_PROXY_API_KEY>` |
 | Model ID | `synetal-ai` |
 
 ### GitHub Copilot (VS Code)
@@ -637,6 +637,25 @@ npm run clean
 
 ---
 
+## 🤝 Contributing
+
+Pull requests welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+Direct pushes to `main` are blocked — all changes go through PR review.
+
+For security issues, see [SECURITY.md](SECURITY.md) — do **not** open a public issue.
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+---
+
 ## 📄 License
 
-MIT
+MIT © 2026 Synetal Solutions. See [LICENSE](LICENSE).
+
+---
+
+## ⭐ Community
+
+- Open a [Discussion](https://github.com/synetalsolutions/synetal-copilot/discussions) for questions
+- File an [Issue](https://github.com/synetalsolutions/synetal-copilot/issues) for bugs
+- Star ⭐ the repo if it saves you money!

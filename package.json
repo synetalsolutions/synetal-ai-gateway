@@ -29,8 +29,16 @@
     "cost-aware",
     "circuit-breaker"
   ],
-  "author": "",
+  "author": "Synetal Solutions",
   "license": "MIT",
+  "homepage": "https://github.com/synetalsolutions/synetal-copilot",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/synetalsolutions/synetal-copilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/synetalsolutions/synetal-copilot/issues"
+  },
   "dependencies": {
     "dotenv": "^17.4.2",
     "ws": "^8.18.0"
