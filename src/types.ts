@@ -56,18 +56,8 @@ export interface ProviderConfig {
   ) => Record<string, string>;
 }
 
-export interface HeadroomConfig {
-  enabled: boolean;
-  baseUrl: string;
-  apiKey?: string;
-  model: string;
-  fallback: boolean;
-  timeoutMs: number;
-}
-
 export interface ProxyConfig {
   proxyPort: number;
-  headroom: HeadroomConfig;
   defaultProvider: ProviderKey;
   providers: Record<ProviderKey, ProviderConfig>;
   /** Fallback chain: if provider fails, try these in order */
@@ -78,27 +68,6 @@ export interface ProxyConfig {
   maxRetries: number;
   /** Retry delay in ms */
   retryDelayMs: number;
-}
-
-export interface CompressionResult {
-  messages: ChatMessage[];
-  compressed: boolean;
-  tokensBefore: number;
-  tokensAfter: number;
-  tokensSaved: number;
-  compressionRatio?: number;
-  transformsApplied?: string[];
-  ccrHashes?: string[];
-}
-
-export interface HeadroomCompressResponse {
-  messages: ChatMessage[];
-  tokens_before: number;
-  tokens_after: number;
-  tokens_saved: number;
-  compression_ratio: number;
-  transforms_applied: string[];
-  ccr_hashes: string[];
 }
 
 export interface ProxyStats {
@@ -128,7 +97,6 @@ export interface RequestContext {
   model: string;
   startTime: number;
   attempts: FallbackAttempt[];
-  compressionResult?: CompressionResult;
   isStreaming: boolean;
 }
 
@@ -161,8 +129,6 @@ export interface HealthStatus {
   status: "healthy" | "degraded" | "unhealthy";
   proxy: string;
   version: string;
-  headroom: string;
-  headroomUrl: string;
   providers: ProviderKey[];
   defaultProvider: ProviderKey;
   /** Per-provider health */

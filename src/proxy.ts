@@ -1,6 +1,6 @@
 /**
- * Multi-Model Headroom Proxy Server
- * Supports: fallback, load-balancing, WebSocket, streaming
+ * Multi-Model Proxy Server
+ * Supports: fallback, load-balancing, WebSocket, streaming, context-truncation
  */
 
 import * as http from "http";
@@ -13,13 +13,11 @@ import {
   ProviderConfig,
   ChatCompletionPayload,
   RequestContext,
-  CompressionResult,
   HealthStatus,
 } from "./types";
 import { loadConfig } from "./config";
 import { log, logRequest, logError } from "./logger";
 import { globalStats } from "./stats";
-import { HeadroomClient } from "./headroom";
 import { truncateToContextLimit } from "./context-truncator";
 import { FallbackEngine } from "./fallback";
 import {
@@ -39,7 +37,6 @@ import { globalCostTracker } from "./cost-tracker";
 // import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
 
 const CONFIG = loadConfig();
-const headroomClient = new HeadroomClient(CONFIG.headroom);
 const fallbackEngine = new FallbackEngine(CONFIG);
 
 // ─── Request ID Generator ───────────────────────────────────────────────────
@@ -129,8 +126,7 @@ async function checkProviderHealth(
 async function executeProviderRequest(
   providerKey: ProviderKey,
   payload: ChatCompletionPayload,
-  reqHeaders: http.IncomingHttpHeaders,
-  compressionResult: CompressionResult | null
+  reqHeaders: http.IncomingHttpHeaders
 ): Promise<{
   success: boolean;
   statusCode?: number;
@@ -233,7 +229,6 @@ async function executeWithFallback(
   queue: ProviderKey[],
   payload: ChatCompletionPayload,
   reqHeaders: http.IncomingHttpHeaders,
-  compressionResult: CompressionResult | null,
   ctx: RequestContext
 ): Promise<{
   success: boolean;
@@ -265,7 +260,7 @@ async function executeWithFallback(
 
     logRequest(ctx.requestId, provider, providerPayload.model, i === 0 ? "Primary" : `Fallback[${i}]`);
 
-    const result = await executeProviderRequest(provider, providerPayload, reqHeaders, compressionResult);
+    const result = await executeProviderRequest(provider, providerPayload, reqHeaders);
     const latencyMs = Date.now() - attemptStart;
 
     attempts.push({
@@ -330,8 +325,6 @@ const server = http.createServer(async (req, res) => {
       })
     );
 
-    const headroomHealth = await headroomClient.health();
-
     const overallStatus = Object.values(providerHealth).some((h) => h.reachable)
       ? "healthy"
       : "unhealthy";
@@ -340,11 +333,9 @@ const server = http.createServer(async (req, res) => {
     res.end(
       JSON.stringify({
         status: overallStatus,
-        proxy: "multi-model-headroom-proxy",
-        version: "2.1.0",
-        features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-tracking"],
-        headroom: headroomHealth ? "connected" : "disconnected",
-        headroomUrl: CONFIG.headroom.baseUrl,
+        proxy: "multi-model-proxy",
+        version: "2.2.0",
+        features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-tracking", "context-truncation"],
         providers: Object.keys(CONFIG.providers) as ProviderKey[],
         defaultProvider: CONFIG.defaultProvider,
         providerHealth,
@@ -501,34 +492,15 @@ const server = http.createServer(async (req, res) => {
           }
         }
 
-        // ── Headroom Compression ──────────────────────────────────────────
-        let compressionResult: CompressionResult | null = null;
-        if (CONFIG.headroom.enabled && Array.isArray(payload.messages)) {
-          try {
-            compressionResult = await headroomClient.compress(
-              payload.messages,
-              payload.model
-            );
-            if (compressionResult.compressed) {
-              payload.messages = compressionResult.messages;
-              globalStats.recordCompression(compressionResult);
-            }
-          } catch (compressErr: unknown) {
-            const msg = compressErr instanceof Error ? compressErr.message : String(compressErr);
-            log("warn", `[${requestId}] Compression error, proceeding uncompressed: ${msg}`);
-          }
-        }
-
         // ── Context Truncation (Sliding Window) ───────────────────────────
-        // After compression, if messages still exceed the provider's context
-        // limit, trim older messages from the middle (keep system + recent).
+        // If messages exceed the provider's context limit, trim older messages
+        // from the middle (keep system prompt + recent messages).
         // This prevents HTTP 400 "exceeded token limit" errors on large requests.
         if (Array.isArray(payload.messages) && payload.messages.length > 0) {
           const truncResult = truncateToContextLimit(
             payload.messages,
             payload.model || "kimi-k2.7-code",
             {
-              knownTokenCount: compressionResult?.tokensAfter,
               tools: payload.tools,
             }
           );
@@ -546,7 +518,6 @@ const server = http.createServer(async (req, res) => {
           queue,
           payload,
           req.headers,
-          compressionResult,
           ctx
         );
 
@@ -621,7 +592,6 @@ const server = http.createServer(async (req, res) => {
                       delete json.system_fingerprint;
                       delete json.usage;
                       delete (json as any)._proxy;
-                      delete (json as any)._headroom;
                       if (json.choices) {
                         for (const c of json.choices) {
                           if (c.delta) {
@@ -773,7 +743,7 @@ const server = http.createServer(async (req, res) => {
           models.map(async ({ provider, model }) => {
             const start = Date.now();
             const msgPayload: ChatCompletionPayload = { ...payload, model };
-            const result = await executeProviderRequest(provider, msgPayload, req.headers, null);
+            const result = await executeProviderRequest(provider, msgPayload, req.headers);
             const latencyMs = Date.now() - start;
 
             return {
@@ -933,20 +903,20 @@ wss.on("connection", (ws, req) => {
           isStreaming: isStream,
         };
 
-        // Compression
-        let compressionResult: CompressionResult | null = null;
-        if (CONFIG.headroom.enabled && Array.isArray(payload.messages)) {
-          try {
-            compressionResult = await headroomClient.compress(payload.messages, payload.model);
-            if (compressionResult.compressed) {
-              payload.messages = compressionResult.messages;
-            }
-          } catch {
-            // proceed uncompressed
+        // Context Truncation
+        if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+          const truncResult = truncateToContextLimit(
+            payload.messages,
+            payload.model || "kimi-k2.7-code",
+            { tools: payload.tools }
+          );
+          if (truncResult.truncated) {
+            payload.messages = truncResult.messages;
+            log("info", `[${requestId}] Truncated: ${truncResult.tokensBefore} → ${truncResult.tokensAfter} tokens (${truncResult.messagesRemoved} msgs removed)`);
           }
         }
 
-        const result = await executeWithFallback(queue, payload, {}, compressionResult, ctx);
+        const result = await executeWithFallback(queue, payload, {}, ctx);
 
         if (!result.success) {
           ws.send(
@@ -966,13 +936,6 @@ wss.on("connection", (ws, req) => {
               type: "stream_start",
               requestId,
               provider: result.provider,
-              compression: compressionResult?.compressed
-                ? {
-                    tokens_before: compressionResult.tokensBefore,
-                    tokens_after: compressionResult.tokensAfter,
-                    tokens_saved: compressionResult.tokensSaved,
-                  }
-                : null,
             })
           );
 
@@ -1002,13 +965,6 @@ wss.on("connection", (ws, req) => {
               requestId,
               provider: result.provider,
               payload: JSON.parse(result.body),
-              compression: compressionResult?.compressed
-                ? {
-                    tokens_before: compressionResult.tokensBefore,
-                    tokens_after: compressionResult.tokensAfter,
-                    tokens_saved: compressionResult.tokensSaved,
-                  }
-                : null,
             })
           );
         }
@@ -1042,13 +998,9 @@ process.on("SIGINT", () => {
 
 // ─── Startup ────────────────────────────────────────────────────────────────
 server.listen(CONFIG.proxyPort, "0.0.0.0", () => {
-  log("ok", `Multi-Model Headroom Proxy v2.0.0 listening on http://0.0.0.0:${CONFIG.proxyPort}`);
+  log("ok", `Multi-Model Proxy v2.2.0 listening on http://0.0.0.0:${CONFIG.proxyPort}`);
   log("info", `WebSocket endpoint: ws://0.0.0.0:${CONFIG.proxyPort}/ws`);
-  log("info", `Headroom compression: ${CONFIG.headroom.enabled ? "ENABLED" : "DISABLED"}`);
-  if (CONFIG.headroom.enabled) {
-    log("info", `  → Headroom: SDK direct (no HTTP server)`);
-    log("info", `  → Fallback on error: ${CONFIG.headroom.fallback}`);
-  }
+  log("info", `Context Truncation: ENABLED (sliding-window, per-provider limits)`);
   log("info", `Supported providers: ${Object.keys(CONFIG.providers).join(", ")}`);
   log("info", `Default provider: ${CONFIG.defaultProvider}`);
   log("info", `Fallback chain: ${CONFIG.fallbackChain.join(" → ")}`);

@@ -194,14 +194,13 @@ export interface TruncationResult {
  *
  * @param messages Original message list
  * @param model Model name (to determine context limit)
- * @param options Optional overrides: knownTokenCount from headroom, tools array
+ * @param options Optional overrides: tools array
  * @returns TruncationResult with possibly trimmed messages
  */
 export function truncateToContextLimit(
   messages: ChatMessage[],
   model: string,
   options?: {
-    knownTokenCount?: number; // From headroom's precise tokenizer
     tools?: unknown;          // payload.tools (function definitions)
   }
 ): TruncationResult {
@@ -216,19 +215,11 @@ export function truncateToContextLimit(
     Math.floor((contextLimit - effectiveReserve) * SAFETY_MARGIN)
   );
 
-  // Use headroom's precise token count if available; otherwise estimate
-  // and add tool definition tokens (which providers count toward limit).
-  let tokensBefore: number;
-  if (options?.knownTokenCount && options.knownTokenCount > 0) {
-    // Headroom counted message tokens with real tokenizer. But it does NOT
-    // count payload.tools. Add our estimate for tools.
-    const toolTokens = estimateToolsTokens(options.tools);
-    tokensBefore = options.knownTokenCount + toolTokens;
-  } else {
-    const msgTokens = estimateMessageTokens(messages);
-    const toolTokens = estimateToolsTokens(options?.tools);
-    tokensBefore = msgTokens + toolTokens;
-  }
+  // Estimate token usage from messages + tool definitions
+  // (both count toward the provider's context limit)
+  const msgTokens = estimateMessageTokens(messages);
+  const toolTokens = estimateToolsTokens(options?.tools);
+  const tokensBefore = msgTokens + toolTokens;
 
   // No truncation needed
   if (tokensBefore <= maxInputTokens) {

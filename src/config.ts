@@ -1,17 +1,14 @@
 /**
- * Configuration loader and builder for Multi-Model Headroom Proxy
+ * Configuration loader and builder for Multi-Model Proxy
  */
 
 import {
   ProviderKey,
   ProviderConfig,
   ProxyConfig,
-  HeadroomConfig,
 } from "./types";
 
 const DEFAULT_PROXY_PORT = 3456;
-const DEFAULT_HEADROOM_URL = "http://localhost:8787";
-const DEFAULT_HEADROOM_MODEL = "gpt-4o";
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 500;
 
@@ -69,15 +66,6 @@ export function buildProviderConfig(key: ProviderKey): ProviderConfig {
 }
 
 export function loadConfig(): ProxyConfig {
-  const headroom: HeadroomConfig = {
-    enabled: envBool("HEADROOM_ENABLED", true),
-    baseUrl: env("HEADROOM_BASE_URL", DEFAULT_HEADROOM_URL)!,
-    apiKey: env("HEADROOM_API_KEY"),
-    model: env("HEADROOM_MODEL", DEFAULT_HEADROOM_MODEL)!,
-    fallback: envBool("HEADROOM_FALLBACK", true),
-    timeoutMs: envInt("HEADROOM_TIMEOUT_MS", 15000),
-  };
-
   const defaultProvider = (env("DEFAULT_PROVIDER", "kimi") as ProviderKey) ?? "kimi";
 
   const providers: Record<ProviderKey, ProviderConfig> = {
@@ -129,7 +117,6 @@ export function loadConfig(): ProxyConfig {
 
   return {
     proxyPort: envInt("PROXY_PORT", DEFAULT_PROXY_PORT),
-    headroom,
     defaultProvider,
     providers: activeProviders as Record<ProviderKey, ProviderConfig>,
     fallbackChain: fallbackChain.filter(k => k in activeProviders),

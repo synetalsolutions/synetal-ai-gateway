@@ -2,7 +2,7 @@
  * In-memory statistics tracker for the proxy
  */
 
-import { ProxyStats, FallbackAttempt, CompressionResult } from "./types";
+import { ProxyStats, FallbackAttempt } from "./types";
 
 export class StatsTracker {
   private stats: ProxyStats;
@@ -24,14 +24,6 @@ export class StatsTracker {
   recordRequest(provider: string): void {
     this.stats.totalRequests++;
     this.stats.providerCounts[provider] = (this.stats.providerCounts[provider] || 0) + 1;
-  }
-
-  recordCompression(result: CompressionResult): void {
-    if (!result.compressed) return;
-    this.stats.compressedRequests++;
-    this.stats.totalTokensBefore += result.tokensBefore;
-    this.stats.totalTokensAfter += result.tokensAfter;
-    this.stats.totalTokensSaved += result.tokensSaved;
   }
 
   recordFallback(fromProvider: string, toProvider: string): void {

@@ -4,7 +4,7 @@
 
 import * as http from "http";
 import * as https from "https";
-import { ChatCompletionPayload, CompressionResult } from "./types";
+import { ChatCompletionPayload } from "./types";
 import { log } from "./logger";
 
 /**
@@ -43,36 +43,9 @@ export function parseSSEChunk(chunk: string): Array<{ data: string; event?: stri
 }
 
 /**
- * Create SSE stream transformer that injects compression metadata
+ * Stub removed: SSE compression metadata injection is no longer needed.
+ * Provider only uses context-truncation now.
  */
-export function createSSETransformer(
-  compressionResult: CompressionResult | null,
-  requestId: string
-): TransformStream<Uint8Array, Uint8Array> {
-  let injected = false;
-
-  return new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      if (!injected && compressionResult?.compressed) {
-        // Inject metadata as a comment in the first chunk
-        const meta = {
-          _headroom: {
-            request_id: requestId,
-            tokens_before: compressionResult.tokensBefore,
-            tokens_after: compressionResult.tokensAfter,
-            tokens_saved: compressionResult.tokensSaved,
-            compression_ratio: compressionResult.compressionRatio,
-            transforms: compressionResult.transformsApplied,
-          },
-        };
-        const metaLine = `: ${JSON.stringify(meta)}\n\n`;
-        controller.enqueue(new TextEncoder().encode(metaLine));
-        injected = true;
-      }
-      controller.enqueue(chunk);
-    },
-  });
-}
 
 /**
  * Pipe an upstream HTTPS response to an HTTP response with optional transformation
