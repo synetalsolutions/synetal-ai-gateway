@@ -35,7 +35,10 @@ jobs:
 
       - name: ✅ Verify security (no hardcoded secrets)
         run: |
-          if grep -rnE "(sk-synetal|sk-jttt|sk-248120f0|de812bf0|tp-skcfch)" --include="*.ts" --include="*.js" --include="*.md" --include="*.yml" --include="*.json" .; then
+          # Scan source files only — skip .github/ (this file itself), node_modules, dist
+          if grep -rnE "(sk-synetal|sk-jttt|sk-248120f0|de812bf0|tp-skcfch)" \
+              --include="*.ts" --include="*.js" --include="*.md" --include="*.json" \
+              --exclude-dir=.github --exclude-dir=node_modules --exclude-dir=dist .; then
             echo "❌ Hardcoded secrets detected!"
             exit 1
           fi
