@@ -31,8 +31,16 @@ import {
   makeStreamingRequest,
 } from "./streaming";
 import { globalCache } from "./cache";
-import { detectPromptType, routePrompt, logRouting } from "./smart-router";
+import { detectPromptType, routePrompt, routeWithComplexity, logRouting } from "./smart-router";
 import { globalCostTracker } from "./cost-tracker";
+import {
+  isProviderAvailable,
+  recordFailure,
+  recordSuccess,
+  filterAvailable,
+  categorizeError,
+  getCircuitStatus,
+} from "./circuit-breaker";
 // Preprocessor disabled — was corrupting random prompts with wrong optimizations.
 // import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
 
@@ -260,6 +268,19 @@ async function executeWithFallback(
 
     logRequest(ctx.requestId, provider, providerPayload.model, i === 0 ? "Primary" : `Fallback[${i}]`);
 
+    // ── Circuit Breaker: Check before sending ────────────────────────────
+    if (!isProviderAvailable(provider)) {
+      log("warn", `[${ctx.requestId}] ⏭️ ${provider} skipped (circuit OPEN)`);
+      attempts.push({
+        provider,
+        success: false,
+        latencyMs: 0,
+        error: "Circuit breaker OPEN",
+        statusCode: 503,
+      });
+      continue;
+    }
+
     const result = await executeProviderRequest(provider, providerPayload, reqHeaders);
     const latencyMs = Date.now() - attemptStart;
 
@@ -272,6 +293,25 @@ async function executeWithFallback(
     });
 
     if (result.success) {
+      // ── Circuit Breaker: Record Success ────────────────────────────────
+      recordSuccess(provider);
+
+      // ── Cost Tracking: Record token usage ──────────────────────────────
+      try {
+        const responseBody = typeof result.body === "string" ? JSON.parse(result.body) : result.body;
+        if (responseBody?.usage) {
+          globalCostTracker.record(
+            provider,
+            providerPayload.model,
+            responseBody.usage.prompt_tokens || 0,
+            responseBody.usage.completion_tokens || 0,
+            latencyMs
+          );
+        }
+      } catch {
+        // Non-JSON or streaming response — skip cost tracking
+      }
+
       if (i > 0) {
         globalStats.recordFallback(queue[0], provider);
         log("warn", `[${ctx.requestId}] Fallback succeeded: ${queue[0]} → ${provider}`);
@@ -279,7 +319,10 @@ async function executeWithFallback(
       return { ...result, provider, attempts };
     }
 
-    log("warn", `[${ctx.requestId}] ${provider} failed: ${result.error}`);
+    // ── Circuit Breaker: Record Failure ──────────────────────────────────
+    const errorType = categorizeError(result.statusCode || 0, result.error || "");
+    recordFailure(provider, errorType);
+    log("warn", `[${ctx.requestId}] ${provider} failed: ${result.error} [${errorType}]`);
 
     // If retryable and not last in chain, wait before next attempt
     if (i < queue.length - 1 && fallbackEngine.isRetryableError(result.statusCode, result.error)) {
@@ -334,11 +377,13 @@ const server = http.createServer(async (req, res) => {
       JSON.stringify({
         status: overallStatus,
         proxy: "multi-model-proxy",
-        version: "2.2.0",
-        features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-tracking", "context-truncation"],
+        version: "2.3.0",
+        features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-aware-routing", "cost-tracking", "context-truncation", "circuit-breaker"],
         providers: Object.keys(CONFIG.providers) as ProviderKey[],
         defaultProvider: CONFIG.defaultProvider,
         providerHealth,
+        circuitBreakers: getCircuitStatus(),
+        costSummary: globalCostTracker.getSummary(),
       } as HealthStatus)
     );
     return;
@@ -458,13 +503,21 @@ const server = http.createServer(async (req, res) => {
 
         if (autoRoute && Array.isArray(payload.messages)) {
           const promptType = detectPromptType(payload.messages);
-          routingDecision = routePrompt(promptType, undefined, modelIsAuto ? undefined : payload.model);
+          // Cost-aware routing: scores complexity, picks cheapest viable model
+          routingDecision = routeWithComplexity(payload.messages, modelIsAuto ? undefined : payload.model);
           payload.model = routingDecision.model;
           logRouting(routingDecision);
           // Smart route: use detected provider as primary, then try ALL other working providers as fallback
           const primary = routingDecision.provider;
           const allOthers = (Object.keys(CONFIG.providers) as ProviderKey[]).filter(p => p !== primary);
-          queue = [primary, ...allOthers.filter(p => CONFIG.providers[p])];
+          // Filter by circuit breaker — skip rate-limited/unavailable providers
+          let rawQueue = [primary, ...allOthers.filter(p => CONFIG.providers[p])];
+          queue = filterAvailable(rawQueue);
+          if (queue.length === 0) {
+            // All providers blocked — force-reset and try anyway
+            log("warn", "[Proxy] All providers blocked by circuit breaker, forcing request");
+            queue = rawQueue;
+          }
           ctx.providerKey = primary;
           log("info", `[${requestId}] SmartRoute(${modelIsAuto ? 'auto' : 'manual'}): ${promptType} → ${routingDecision.provider}/${routingDecision.model} | Fallback: ${queue.slice(1).join(',')}`);
         } else {
