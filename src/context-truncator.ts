@@ -76,8 +76,9 @@ const PROVIDER_CONTEXT_LIMITS: Record<string, number> = {
 };
 
 /** Tokens reserved for the model's response (output budget).
- * DeepSeek V4 max output is 384K, GLM/Kimi are typically 32-64K. Use a
- * conservative default that leaves room for full code generation. */
+ * DeepSeek V4 max output is 384K, GLM/Kimi are typically 32-64K.
+ * Keep conservative default; bounded dynamically to 1/4 of each provider's
+ * context limit so small-context providers (e.g. Xiaomi 32K) aren't starved. */
 const OUTPUT_RESERVE_TOKENS = 32768;
 
 /** Safety margin multiplier — our estimate must be this much UNDER the limit
@@ -205,7 +206,15 @@ export function truncateToContextLimit(
   }
 ): TruncationResult {
   const contextLimit = getContextLimit(model);
-  const maxInputTokens = Math.floor((contextLimit - OUTPUT_RESERVE_TOKENS) * SAFETY_MARGIN);
+  // Dynamic output reserve: never let reserve exceed 25% of context limit,
+  // otherwise small-context providers (Xiaomi 32K) get zero input budget → crash.
+  // E.g. Xiaomi: 32K → reserve = 8K → budget = 22K (healthy!)
+  //      GLM 1M  → reserve = 32K → budget = ~870K (plenty)
+  const effectiveReserve = Math.min(OUTPUT_RESERVE_TOKENS, Math.floor(contextLimit * 0.25));
+  const maxInputTokens = Math.max(
+    1024, // absolute floor — never allow 0 input budget
+    Math.floor((contextLimit - effectiveReserve) * SAFETY_MARGIN)
+  );
 
   // Use headroom's precise token count if available; otherwise estimate
   // and add tool definition tokens (which providers count toward limit).
