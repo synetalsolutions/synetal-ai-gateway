@@ -48,7 +48,7 @@ export function buildProviderConfig(key: ProviderKey): ProviderConfig {
     glm: {
       host: "api.z.ai",
       keyEnv: "GLM_API_KEY",
-      basePath: "/api/paas/v4",
+      basePath: "/api/coding/paas/v4",
       pathTransform: (path: string) => path.replace(/^\/v1/, ""),
     },
     openai: {
