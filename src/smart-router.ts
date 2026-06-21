@@ -108,33 +108,39 @@ export function routePrompt(
   }
 
   // Round-robin pools: each prompt type gets multiple provider options
+  // Note: Xiaomi (mimo, 32K context) excluded from code/reasoning/general pools.
+  // Cursor sends 450K+ token conversations with 22K token tool definitions —
+  // Xiaomi's tiny context gets emergency-truncated to 20 tokens (useless).
+  // Only kept in "fast" pool for tiny/simple requests.
   const pools: Record<PromptType, Array<{ provider: ProviderKey; model: string; reason: string }>> = {
     code: [
       { provider: "kimi",     model: "kimi-k2.7-code",   reason: "Code → kimi-k2.7-code" },
       { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Code → deepseek-v4-pro" },
       { provider: "glm",      model: "glm-5.2",           reason: "Code → glm-5.2" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Code → kimi-k2.7-code" },
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Code → deepseek-v4-flash" },
-      { provider: "xiaomi",   model: "mimo-v2.5-pro",     reason: "Code → mimo-v2.5-pro" },
     ],
     reasoning: [
       { provider: "deepseek", model: "deepseek-v4-pro",   reason: "Reasoning → deepseek-v4-pro" },
       { provider: "glm",      model: "glm-5.2",           reason: "Reasoning → glm-5.2" },
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Reasoning → kimi-k2.7-code" },
+      { provider: "deepseek", model: "deepseek-v4-pro",    reason: "Reasoning → deepseek-v4-pro" },
     ],
     vision: [
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
       { provider: "glm",      model: "glm-5.2",           reason: "Vision → glm-5.2" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "Vision → kimi-k2.7-code" },
     ],
     fast: [
       { provider: "deepseek", model: "deepseek-v4-flash", reason: "Fast → deepseek-v4-flash" },
-      { provider: "xiaomi",   model: "mimo-v2.5-pro",     reason: "Fast → mimo-v2.5-pro" },
+      { provider: "glm",      model: "glm-4-flash",       reason: "Fast → glm-4-flash" },
     ],
     general: [
       { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
       { provider: "glm",      model: "glm-5.2",           reason: "General → glm-5.2" },
       { provider: "deepseek", model: "deepseek-v4-pro",    reason: "General → deepseek-v4-pro" },
+      { provider: "kimi",     model: "kimi-k2.7-code",    reason: "General → kimi-k2.7-code" },
       { provider: "deepseek", model: "deepseek-v4-flash",  reason: "General → deepseek-v4-flash" },
-      { provider: "xiaomi",   model: "mimo-v2.5-pro",      reason: "General → mimo-v2.5-pro" },
     ],
   };
 

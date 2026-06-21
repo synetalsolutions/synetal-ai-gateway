@@ -264,25 +264,32 @@ export function truncateToContextLimit(
   }
 
   // Step 3: If we couldn't keep ANY conversation messages (system prompt alone is too big),
-  // truncate the system message itself
+  // truncate the system message itself — but never destroy it completely.
+  // The old code would sometimes reduce the system prompt to 0 chars, leaving
+  // the model with just "[context truncated...]" — effectively useless.
   if (keptConversation.length === 0 && systemMsgs.length > 0) {
-    // Emergency: truncate the largest system message
+    // Emergency: truncate the largest system message, but keep at least 2K chars
+    // so the model still has meaningful instructions to follow.
+    const MIN_SYS_CHARS = 2048;
     const sysMsgIdx = systemMsgs.findIndex(m => {
       const text = extractContentText(m.content);
       return text.length > 100;
     });
     if (sysMsgIdx >= 0) {
       const sysContent = extractContentText(systemMsgs[sysMsgIdx].content);
-      const maxSysTokens = maxInputTokensForMessages - 200;
-      const maxSysChars = maxSysTokens * 2.85;
+      // Target: leave at least MIN_SYS_CHARS, but try to fit as much as budget allows
+      const availableBudget = Math.max(maxInputTokensForMessages, 1000) - 200;
+      const targetChars = Math.max(MIN_SYS_CHARS, Math.floor(availableBudget * 2.85));
+      const maxSysChars = Math.min(sysContent.length, targetChars);
+
       if (sysContent.length > maxSysChars) {
         systemMsgs[sysMsgIdx] = {
           ...systemMsgs[sysMsgIdx],
           content:
-            sysContent.slice(0, Math.floor(maxSysChars)) +
-            "\n\n[... context truncated due to length ...]",
+            sysContent.slice(0, maxSysChars) +
+            "\n\n[... earlier context truncated to fit ...]",
         };
-        log("warn", `Emergency system prompt truncation: ${sysContent.length} → ${Math.floor(maxSysChars)} chars`);
+        log("warn", `Emergency system prompt truncation: ${sysContent.length} → ${maxSysChars} chars`);
       }
     }
   }

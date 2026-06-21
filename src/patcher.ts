@@ -47,16 +47,19 @@ export function patchPayload(
     }
 
     case "deepseek": {
-      // DeepSeek thinking-mode: remove reasoning_content from non-assistant messages.
-      // Cursor/clients send reasoning_content in user/system messages which
-      // DeepSeek rejects with "The reasoning_content in the thinking mode must
-      // be passed back to the API." Only ASSISTANT messages are allowed to
-      // carry it (tool-call continuations).
+      // DeepSeek thinking-mode fix: reasoning_content breaks when context
+      // truncation removes messages from the middle. The API requires that
+      // if reasoning_content is present in an assistant message, ALL prior
+      // assistant messages in the same turn must also have it (chain).
+      // Truncation breaks this chain → HTTP 400.
+      //
+      // Solution: strip ALL reasoning_content from every message. DeepSeek
+      // will regenerate its reasoning chain fresh. This is safe because
+      // reasoning_content is just the model's internal thought process —
+      // it doesn't affect the actual response content.
       if (Array.isArray(p.messages)) {
         for (const msg of p.messages) {
-          if (msg.role !== "assistant") {
-            delete msg.reasoning_content;
-          }
+          delete msg.reasoning_content;
         }
       }
       break;

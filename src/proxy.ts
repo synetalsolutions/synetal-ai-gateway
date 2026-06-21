@@ -35,7 +35,8 @@ import {
 import { globalCache } from "./cache";
 import { detectPromptType, routePrompt, logRouting } from "./smart-router";
 import { globalCostTracker } from "./cost-tracker";
-import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
+// Preprocessor disabled — was corrupting random prompts with wrong optimizations.
+// import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
 
 const CONFIG = loadConfig();
 const headroomClient = new HeadroomClient(CONFIG.headroom);
@@ -59,6 +60,19 @@ function setCorsHeaders(res: http.ServerResponse): void {
 // ─── Proxy Authentication ───────────────────────────────────────────────────
 const PROXY_API_KEY = process.env.PROXY_API_KEY;
 
+/**
+ * Constant-time string comparison to prevent timing attacks.
+ * Compares every byte regardless of early mismatch.
+ */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do a full-length comparison to avoid leaking length info
+    crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 function isAuthorized(req: http.IncomingMessage): boolean {
   // If no API key is configured, allow all requests (backward compatible)
   if (!PROXY_API_KEY || PROXY_API_KEY.length < 10) {
@@ -66,15 +80,19 @@ function isAuthorized(req: http.IncomingMessage): boolean {
   }
   const auth = req.headers["authorization"] || "";
   const token = auth.replace(/^Bearer\s+/i, "").trim();
-  return token === PROXY_API_KEY;
+  return timingSafeEqualStr(token, PROXY_API_KEY);
 }
 
 function sendUnauthorized(res: http.ServerResponse): void {
   res.writeHead(401, { "Content-Type": "application/json" });
   res.end(
     JSON.stringify({
-      error: "Unauthorized",
-      message: "Invalid or missing API key. Set Authorization: Bearer <your-proxy-api-key>",
+      error: {
+        message: "Invalid or missing API key. Set Authorization: Bearer <your-proxy-api-key>",
+        type: "authentication_error",
+        code: "invalid_api_key",
+        param: null,
+      },
     })
   );
 }
@@ -293,9 +311,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ─── Proxy Authentication ─────────────────────────────────────────────────
-  // Health check and public endpoints skip auth
-  const publicPaths = ["/health", "/", "/stats"];
-  const isPublic = publicPaths.includes(req.url || "");
+  // Only health check is public. ALL other endpoints (stats, analytics,
+  // cache, /v1/*) require valid API key — prevents data leakage.
+  const isPublic = req.url === "/health" || req.url === "/";
   if (!isPublic && !isAuthorized(req)) {
     sendUnauthorized(res);
     return;
@@ -435,45 +453,9 @@ const server = http.createServer(async (req, res) => {
 
         // ── AI Gateway: Rate Limiting (REMOVED) ──────────────────────────
 
-        // Multiple model aliases trigger smart routing + preprocessing
+        // Multiple model aliases trigger smart routing
         const smartModels = ["synetal-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-3.5-turbo"];
         const modelIsAuto = smartModels.includes(payload.model) || !payload.model;
-
-        // ── AI Gateway: Prompt Preprocessor ──────────────────────────────
-        // Optimizes raw/vague/hindi dev prompts using deepseek-flash.
-        //
-        // When it runs:
-        // - If X-Preprocess: false header → explicitly disabled
-        // - If X-Preprocess: true header → explicitly enabled
-        // - Otherwise: automatically SKIP for large requests (Cursor sends
-        //   100K+ token system prompts — preprocessor is useless there and
-        //   just adds latency). Run only on small/direct API calls.
-        //
-        // The preprocessor internally checks needsOptimization() and skips
-        // if the prompt is already clear/structured/code — so even when
-        // enabled, most requests bypass it with zero latency cost.
-        const preprocessExplicit = req.headers["x-preprocess"];
-        let usePreprocess: boolean;
-        if (preprocessExplicit === "false") {
-          usePreprocess = false;
-        } else if (preprocessExplicit === "true") {
-          usePreprocess = true;
-        } else {
-          // Auto-detect: skip preprocessor for large payloads (Cursor-like)
-          const bodySize = Buffer.byteLength(body);
-          usePreprocess = bodySize < 20000; // < 20KB = likely direct API call
-        }
-
-        let preprocessResult: PreprocessResult | null = null;
-        if (isPreprocessEnabled() && usePreprocess && Array.isArray(payload.messages)) {
-          preprocessResult = await optimizePrompt(payload.messages);
-          if (preprocessResult.optimized) {
-            payload = applyOptimizedPrompt(payload, preprocessResult);
-            log("info", `[${requestId}] Preprocessor: optimized (${preprocessResult.latencyMs}ms)`);
-          } else if (preprocessResult.skipped) {
-            log("info", `[${requestId}] Preprocessor: skipped (${preprocessResult.skipReason})`);
-          }
-        }
 
         // ── AI Gateway: Smart Auto-Routing ───────────────────────────────
         const autoRoute = req.headers["x-auto-route"] === "true" || modelIsAuto;
@@ -905,7 +887,7 @@ wss.on("connection", (ws, req) => {
   const wsToken = url.searchParams.get("token") || "";
   const wsAuthHeader = (req.headers["authorization"] || "").replace(/^Bearer\s+/i, "").trim();
   if (PROXY_API_KEY && PROXY_API_KEY.length >= 10) {
-    if (wsToken !== PROXY_API_KEY && wsAuthHeader !== PROXY_API_KEY) {
+    if (!timingSafeEqualStr(wsToken, PROXY_API_KEY) && !timingSafeEqualStr(wsAuthHeader, PROXY_API_KEY)) {
       log("warn", `WebSocket auth failed from ${req.socket.remoteAddress}`);
       ws.send(JSON.stringify({ type: "error", error: "Unauthorized: invalid or missing token" }));
       ws.close(1008, "Unauthorized");
