@@ -3,6 +3,8 @@
  * Tracks tokens, costs, latency per provider/model.
  */
 
+import { getPricing } from "./model-registry";
+
 export interface CostEntry {
   provider: string;
   model: string;
@@ -17,26 +19,12 @@ export interface CostEntry {
 
 // Pricing per 1M tokens (input/output) — verified 2026-06-21
 // Source: Z.AI, platform.kimi.ai, api-docs.deepseek.com
+// NOTE: Full pricing for ALL registered models lives in model-registry.ts (canonical source).
+// This table provides overrides/fallbacks; anything not found here is looked up via getPricing() from registry.
 const PRICING: Record<string, { input: number; output: number }> = {
-  // ── PREMIUM ────────────────────────────────────────────────────────────
-  "glm-5.2":         { input: 4.0,  output: 12.0 },   // Z.AI strongest model
-  // ── MEDIUM ──────────────────────────────────────────────────────────────
-  "kimi-k2.7-code":  { input: 2.0,  output: 10.0 },   // Code-specialized, 262K ctx
-  "deepseek-v4-pro": { input: 1.0,  output: 2.0 },    // Strong general reasoning
-  // ── CHEAP ───────────────────────────────────────────────────────────────
-  "deepseek-v4-flash": { input: 0.1, output: 0.2 },   // Cheapest API model
-  "glm-4-flash":     { input: 0.1,  output: 0.2 },    // GLM fast variant
-  // ── FREE (open-weight, self-hosted) ─────────────────────────────────────
-  "mimo-v2.5-pro":   { input: 0.0,  output: 0.0 },    // Xiaomi MiMo, open-weight
-  "mimo-v2.5":       { input: 0.0,  output: 0.0 },
   // ── Reference (not proxied) ─────────────────────────────────────────────
   "gpt-4o":                      { input: 2.5,  output: 10.0 },
   "claude-sonnet-4-5-20250929":  { input: 3.0,  output: 15.0 },
-  // ── Legacy (kept for old logs) ──────────────────────────────────────────
-  "kimi-k2.6":                   { input: 2.0,  output: 10.0 },
-  "kimi-k2.5":                   { input: 1.0,  output: 5.0 },
-  "moonshot-v1-auto":            { input: 0.3,  output: 1.0 },
-  "moonshot-v1-32k-vision-preview": { input: 0.5, output: 2.0 },
 };
 
 export class CostTracker {
@@ -51,7 +39,7 @@ export class CostTracker {
     latencyMs: number,
     cached: boolean = false
   ): CostEntry {
-    const pricing = PRICING[model] || { input: 0.5, output: 2.0 };
+    const pricing = PRICING[model] || getPricing(model);
     const promptCost = (promptTokens / 1_000_000) * pricing.input;
     const completionCost = (completionTokens / 1_000_000) * pricing.output;
     const estimatedCostUsd = cached ? 0 : promptCost + completionCost;

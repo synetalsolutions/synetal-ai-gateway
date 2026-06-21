@@ -15,6 +15,7 @@ import { ProviderKey } from "./types";
 import { log } from "./logger";
 import { isProviderAvailable } from "./circuit-breaker";
 import { scoreComplexity, tierLabel, CostTier } from "./complexity-scorer";
+import { getDefaultModel as getDefaultModelForProvider } from "./model-registry";
 
 export type PromptType = "code" | "reasoning" | "vision" | "general" | "fast";
 
@@ -317,18 +318,6 @@ export function routePrompt(
 
 // Round-robin counters: track how many times each type has been routed
 const rrCounters: Record<string, number> = {};
-
-function getDefaultModelForProvider(provider: ProviderKey): string {
-  const defaults: Record<ProviderKey, string> = {
-    kimi: "kimi-k2.7-code",
-    deepseek: "deepseek-v4-pro",
-    glm: "glm-5.2",
-    openai: "gpt-4o",
-    anthropic: "claude-sonnet-4-5-20250929",
-    xiaomi: "mimo-v2.5-pro",
-  };
-  return defaults[provider];
-}
 
 /**
  * Combined routing: score complexity from messages + route to best model.

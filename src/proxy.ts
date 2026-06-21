@@ -41,6 +41,7 @@ import {
   categorizeError,
   getCircuitStatus,
 } from "./circuit-breaker";
+import { MODEL_REGISTRY, getAllModelIds, findModel, getDefaultModel } from "./model-registry";
 // Preprocessor disabled — was corrupting random prompts with wrong optimizations.
 // import { isPreprocessEnabled, optimizePrompt, applyOptimizedPrompt, PreprocessResult } from "./preprocessor";
 
@@ -212,24 +213,26 @@ async function executeProviderRequest(
  * This prevents sending `deepseek-v4-flash` to Kimi (which only has kimi-* models).
  */
 function mapModelForProvider(model: string, provider: ProviderKey): string {
-  // Default model per provider — always safe
-  const defaultModel: Record<ProviderKey, string> = {
-    kimi: "kimi-k2.7-code",
-    deepseek: "deepseek-chat",
-    xiaomi: "mimo-v2.5-pro",
-    glm: "glm-5.2",
-    openai: "gpt-4o",
-    anthropic: "claude-sonnet-4-5-20250929",
-  };
+  // ── Use model registry for accurate provider mapping ──────────────────
+  // If the requested model exists in our registry and belongs to this
+  // provider, use it directly.
+  const regModel = findModel(model);
+  if (regModel) {
+    if (regModel.provider === provider) {
+      return regModel.id;  // Model belongs to this provider — use directly
+    }
+    // Model belongs to a different provider — use this provider's default equivalent
+    return getDefaultModel(provider);
+  }
 
-  // Models are already namespaced: kimi-* → kimi, deepseek-* → deepseek, mimo-* → xiaomi, glm-* → glm
-  if (provider === "kimi" && model.startsWith("kimi-")) return model;
+  // ── Fallback: prefix-based detection ──────────────────────────────────
+  if (provider === "kimi" && (model.startsWith("kimi-") || model.startsWith("moonshot-"))) return model;
   if (provider === "deepseek" && model.startsWith("deepseek-")) return model;
   if (provider === "xiaomi" && (model.startsWith("mimo-") || model.startsWith("MiMo-"))) return model;
   if (provider === "glm" && model.startsWith("glm-")) return model;
 
   // Model doesn't belong to this provider — use the provider's default equivalent
-  return defaultModel[provider] || model;
+  return getDefaultModel(provider);
 }
 
 // ─── Fallback Chain Execution ───────────────────────────────────────────────
@@ -377,7 +380,7 @@ const server = http.createServer(async (req, res) => {
       JSON.stringify({
         status: overallStatus,
         proxy: "multi-model-proxy",
-        version: "2.3.0",
+        version: "2.4.0",
         features: ["fallback", "load-balancing", "caching", "smart-routing", "cost-aware-routing", "cost-tracking", "context-truncation", "circuit-breaker"],
         providers: Object.keys(CONFIG.providers) as ProviderKey[],
         defaultProvider: CONFIG.defaultProvider,
@@ -442,28 +445,50 @@ const server = http.createServer(async (req, res) => {
   // "User API Key Rate limit exceeded" — so we MUST return a valid list.
   if ((req.url === "/v1/models" || req.url === "/models") && req.method === "GET") {
     const now = Math.floor(Date.now() / 1000);
-    const models = [
-      "synetal-ai",
-      "auto",
-      "gpt-4",
-      "gpt-4o",
-      "gpt-4o-mini",
-      "gpt-4-turbo",
-      "gpt-3.5-turbo",
-      "kimi-k2.7-code",
-      "kimi-k2.6",
-      "deepseek-v4-pro",
-      "deepseek-v4-flash",
-      "deepseek-chat",
-      "mimo-v2.5-pro",
-    ].map((id) => ({
+
+    // Build model list from the registry + virtual auto-routing aliases
+    const autoAliases = [
+      { id: "synetal-ai", description: "🤖 Auto-route (cost-aware + circuit breaker)" },
+      { id: "auto", description: "🤖 Auto-route alias" },
+    ];
+
+    // Get all real models from registry
+    const realModels = MODEL_REGISTRY.map((m) => ({
+      id: m.id,
+      object: "model",
+      created: now,
+      owned_by: m.provider,
+      context_length: m.contextLength,
+      cost_tier: m.costTier,
+      supports_vision: m.supportsVision,
+      supports_reasoning: m.supportsReasoning,
+      description: m.description,
+      pricing: m.pricing,
+    }));
+
+    // Add virtual aliases at top
+    const aliasModels = autoAliases.map((a) => ({
+      id: a.id,
+      object: "model",
+      created: now,
+      owned_by: "synetal",
+      description: a.description,
+    }));
+
+    // Also add GPT aliases for Cursor compatibility
+    const gptAliases = ["gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"].map((id) => ({
       id,
       object: "model",
       created: now,
       owned_by: "synetal",
+      description: "🔄 Alias → auto-route",
     }));
+
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ object: "list", data: models }));
+    res.end(JSON.stringify({
+      object: "list",
+      data: [...aliasModels, ...gptAliases, ...realModels],
+    }));
     return;
   }
 
@@ -490,8 +515,11 @@ const server = http.createServer(async (req, res) => {
         // ── AI Gateway: Rate Limiting (REMOVED) ──────────────────────────
 
         // Multiple model aliases trigger smart routing
-        const smartModels = ["synetal-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-3.5-turbo"];
+        const smartModels = ["synetal-ai", "auto", "automatic", "gpt-4", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"];
         const modelIsAuto = smartModels.includes(payload.model) || !payload.model;
+
+        // Check if user specified a specific model from our registry
+        const requestedModel = findModel(payload.model || "");
 
         // ── AI Gateway: Smart Auto-Routing ───────────────────────────────
         const autoRoute = req.headers["x-auto-route"] === "true" || modelIsAuto;
@@ -501,7 +529,24 @@ const server = http.createServer(async (req, res) => {
 
         let queue: ProviderKey[] = [];
 
-        if (autoRoute && Array.isArray(payload.messages)) {
+        if (requestedModel) {
+          // ── User specified a specific registered model ──────────────────
+          // Route directly to that model's provider, no smart routing
+          const provider = requestedModel.provider;
+          log("info", `[${requestId}] Direct model: ${requestedModel.id} → ${provider}`);
+          payload.model = requestedModel.id;
+          ctx.model = requestedModel.id;
+          // Build queue: requested provider first, then all others as fallback
+          const allOthers = (Object.keys(CONFIG.providers) as ProviderKey[]).filter(p => p !== provider);
+          queue = filterAvailable([provider, ...allOthers.filter(p => CONFIG.providers[p])]);
+          if (queue.length === 0) {
+            log("warn", `[${requestId}] All providers blocked, forcing direct route`);
+            queue = [provider, ...allOthers.filter(p => CONFIG.providers[p])];
+          }
+          ctx.providerKey = provider;
+
+        } else if (autoRoute && Array.isArray(payload.messages)) {
+          // ── Auto-route: cost-aware smart routing ─────────────────────────
           const promptType = detectPromptType(payload.messages);
           // Cost-aware routing: scores complexity, picks cheapest viable model
           routingDecision = routeWithComplexity(payload.messages, modelIsAuto ? undefined : payload.model);
