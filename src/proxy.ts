@@ -20,6 +20,7 @@ import { loadConfig } from "./config";
 import { log, logRequest, logError } from "./logger";
 import { globalStats } from "./stats";
 import { HeadroomClient } from "./headroom";
+import { truncateToContextLimit } from "./context-truncator";
 import { FallbackEngine } from "./fallback";
 import {
   patchPayload,
@@ -513,6 +514,28 @@ const server = http.createServer(async (req, res) => {
           } catch (compressErr: unknown) {
             const msg = compressErr instanceof Error ? compressErr.message : String(compressErr);
             log("warn", `[${requestId}] Compression error, proceeding uncompressed: ${msg}`);
+          }
+        }
+
+        // ── Context Truncation (Sliding Window) ───────────────────────────
+        // After compression, if messages still exceed the provider's context
+        // limit, trim older messages from the middle (keep system + recent).
+        // This prevents HTTP 400 "exceeded token limit" errors on large requests.
+        if (Array.isArray(payload.messages) && payload.messages.length > 0) {
+          const truncResult = truncateToContextLimit(
+            payload.messages,
+            payload.model || "kimi-k2.7-code",
+            {
+              knownTokenCount: compressionResult?.tokensAfter,
+              tools: payload.tools,
+            }
+          );
+          if (truncResult.truncated) {
+            payload.messages = truncResult.messages;
+            log(
+              "info",
+              `[${requestId}] Truncated: ${truncResult.tokensBefore} → ${truncResult.tokensAfter} tokens (${truncResult.messagesRemoved} msgs removed)`
+            );
           }
         }
 

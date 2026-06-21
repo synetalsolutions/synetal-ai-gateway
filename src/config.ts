@@ -75,7 +75,7 @@ export function loadConfig(): ProxyConfig {
     apiKey: env("HEADROOM_API_KEY"),
     model: env("HEADROOM_MODEL", DEFAULT_HEADROOM_MODEL)!,
     fallback: envBool("HEADROOM_FALLBACK", true),
-    timeoutMs: envInt("HEADROOM_TIMEOUT_MS", 30000),
+    timeoutMs: envInt("HEADROOM_TIMEOUT_MS", 15000),
   };
 
   const defaultProvider = (env("DEFAULT_PROVIDER", "kimi") as ProviderKey) ?? "kimi";
