@@ -1,0 +1,57 @@
+{
+  "name": "kestrel-ai",
+  "version": "2.5.0",
+  "description": "Kestrel AI — cost-aware multi-model LLM gateway with smart routing, circuit breaker, and built-in context truncation (57–96% token savings). OpenAI-compatible.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "kestrel",
+    "kestrel-ai",
+    "llm",
+    "proxy",
+    "gateway",
+    "openai",
+    "kimi",
+    "deepseek",
+    "glm",
+    "mimo",
+    "xiaomi",
+    "multi-model",
+    "smart-routing",
+    "fallback",
+    "load-balancing",
+    "websocket",
+    "streaming",
+    "cost-aware",
+    "circuit-breaker"
+  ],
+  "author": "Synetal Solutions",
+  "license": "MIT",
+  "homepage": "https://github.com/synetalsolutions/kestrel-ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/synetalsolutions/kestrel-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/synetalsolutions/kestrel-ai/issues"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi-Model Headroom Proxy — WebSocket Client</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0d1117;
+      color: #c9d1d9;
+    }
+    h1 { color: #58a6ff; font-size: 1.5rem; }
+    .panel {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-size: 0.85rem; color: #8b949e; margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: inherit;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #238636;
+      color: white;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { background: #2ea043; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .row > * { flex: 1; }
+    #log {
+      font-family: "SF Mono", Monaco, monospace;
+      font-size: 0.8rem;
+      max-height: 400px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .log-entry { margin-bottom: 6px; padding: 6px 8px; border-radius: 4px; }
+    .log-connect { background: #1f6feb20; border-left: 3px solid #1f6feb; }
+    .log-message { background: #23863620; border-left: 3px solid #238636; }
+    .log-error { background: #da363320; border-left: 3px solid #da3633; }
+    .log-chunk { background: #8957e520; border-left: 3px solid #8957e5; }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .stat { background: #21262d; padding: 8px 16px; border-radius: 6px; }
+    .stat-value { font-size: 1.2rem; font-weight: 700; color: #58a6ff; }
+    .stat-label { font-size: 0.75rem; color: #8b949e; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Multi-Model Headroom Proxy — WebSocket Client</h1>
+
+  <div class="panel">
+    <div class="row">
+      <div>
+        <label>Proxy URL</label>
+        <input id="url" value="ws://localhost:3456/ws">
+      </div>
+      <div>
+        <label>Provider</label>
+        <select id="provider">
+          <option value="">Auto-detect</option>
+          <option value="kimi">Kimi</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="glm">GLM-4</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+        </select>
+      </div>
+      <div>
+        <label>Model</label>
+        <input id="model" value="deepseek-chat" placeholder="e.g. deepseek-chat">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label><input type="checkbox" id="stream"> Stream response</label>
+      </div>
+      <div>
+        <label><input type="checkbox" id="loadbalance"> Load balance</label>
+      </div>
+    </div>
+    <label>Message</label>
+    <textarea id="message" placeholder="Enter your message here...">Explain quantum computing in simple terms.</textarea>
+    <div style="margin-top: 12px; display: flex; gap: 8px;">
+      <button id="connectBtn" onclick="connect()">Connect</button>
+      <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+      <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="stats" id="stats">
+      <div class="stat"><div class="stat-value" id="statStatus">-</div><div class="stat-label">Status</div></div>
+      <div class="stat"><div class="stat-value" id="statProvider">-</div><div class="stat-label">Provider</div></div>
+      <div class="stat"><div class="stat-value" id="statSaved">-</div><div class="stat-label">Tokens Saved</div></div>
+      <div class="stat"><div class="stat-value" id="statRatio">-</div><div class="stat-label">Compression</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label>Event Log</label>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let ws = null;
+    let requestId = null;
+
+    function log(type, text) {
+      const el = document.createElement('div');
+      el.className = `log-entry log-${type}`;
+      el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+      document.getElementById('log').appendChild(el);
+      document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
+    }
+
+    function setStatus(status) {
+      document.getElementById('statStatus').textContent = status;
+    }
+
+    function connect() {
+      const url = document.getElementById('url').value;
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        log('connect', 'WebSocket connected');
+        setStatus('Connected');
+        document.getElementById('connectBtn').disabled = true;
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = false;
+      };
+
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      };
+
+      ws.onclose = () => {
+        log('connect', 'WebSocket disconnected');
+        setStatus('Disconnected');
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('sendBtn').disabled = true;
+        document.getElementById('disconnectBtn').disabled = true;
+      };
+
+      ws.onerror = (err) => {
+        log('error', 'WebSocket error: ' + err.message);
+        setStatus('Error');
+      };
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'connected':
+          log('connect', `Client ID: ${msg.clientId}. Providers: ${msg.providers.join(', ')}`);
+          break;
+        case 'stream_start':
+          requestId = msg.requestId;
+          document.getElementById('statProvider').textContent = msg.provider;
+          if (msg.compression) {
+            document.getElementById('statSaved').textContent = msg.compression.tokens_saved;
+            document.getElementById('statRatio').textContent =
+              ((1 - msg.compression.tokens_after / msg.compression.tokens_before) * 100).toFixed(0) + '%';
+          }
+          log('message', `Stream started [${msg.provider}]`);
+          break;
+        case 'stream_chunk':
+          log('chunk', msg.data.substring(0, 200));
+          break;
+        case 'stream_end':
+          log('message', 'Stream ended');
+          break;
+        case 'stream_error':
+          log('error', 'Stream error: ' + msg.error);
+          break;
+        case 'response':
+          requestId = msg.requestId;
+          document.getElementById('statProvider').textContent = msg.provider;
+          if (msg.compression) {
+            document.getElementById('statSaved').textContent = msg.compression.tokens_saved;
+            document.getElementById('statRatio').textContent =
+              ((1 - msg.compression.tokens_after / msg.compression.tokens_before) * 100).toFixed(0) + '%';
+          }
+          const content = msg.payload?.choices?.[0]?.message?.content || JSON.stringify(msg.payload).slice(0, 300);
+          log('message', 'Response: ' + content);
+          break;
+        case 'error':
+          log('error', msg.error);
+          break;
+        case 'pong':
+          // silent
+          break;
+        default:
+          log('message', JSON.stringify(msg).slice(0, 200));
+      }
+    }
+
+    function sendMessage() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      const payload = {
+        model: document.getElementById('model').value,
+        messages: [
+          { role: 'user', content: document.getElementById('message').value }
+        ],
+        stream: document.getElementById('stream').checked,
+      };
+
+      const msg = {
+        type: 'chat',
+        payload,
+        provider: document.getElementById('provider').value || undefined,
+        model: payload.model,
+      };
+
+      log('message', 'Sending: ' + JSON.stringify(msg).slice(0, 200));
+      ws.send(JSON.stringify(msg));
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
+    }
+
+    // Ping every 30s to keep alive
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+  </script>
+</body>
+</html>

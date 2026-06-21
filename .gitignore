@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# Secrets — NEVER commit
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# Logs
+*.log
+
+# Runtime cache
+proxy_cache_dir/
+litellm.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+/tmp/
+
+# Private notes — not for public repo
+PRODUCTION_NOTES.md
+*.bak

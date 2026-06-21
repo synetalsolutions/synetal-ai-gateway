@@ -1,0 +1,44 @@
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment & Secrets (NEVER commit)
+.env
+.env.local
+.env.production
+.env.staging
+*.pem
+*.key
+*.crt
+
+# Logs
+*.log
+logs/
+pm2-*.log
+
+# Cache
+proxy_cache_dir/
+.cache/
+
+# Database
+litellm.db
+*.sqlite
+*.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+.nyc_output/

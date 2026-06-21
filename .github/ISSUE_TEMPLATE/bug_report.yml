@@ -1,0 +1,39 @@
+---
+name: 🐛 Bug Report
+about: Report a bug or unexpected behavior
+title: "[BUG] "
+labels: bug, needs-triage
+assignees: ''
+---
+
+## 📝 Description
+<!-- A clear and concise description of the bug. -->
+
+## 🔄 Steps to Reproduce
+1.
+2.
+3.
+
+## ✅ Expected Behavior
+<!-- What you expected to happen. -->
+
+## ❌ Actual Behavior
+<!-- What actually happened. -->
+
+## 📸 Screenshots / Logs
+<!-- If applicable, paste error logs or screenshots. -->
+
+## 🖥️ Environment
+- **Kestrel AI Gateway version**: <!-- e.g. v2.4.0 -->
+- **Node.js version**: <!-- e.g. 22.x -->
+- **Provider(s) affected**: <!-- kimi, deepseek, glm, xiaomi -->
+- **OS**: <!-- e.g. Ubuntu 24.04 -->
+
+## 🔧 Configuration
+<!-- Your routing mode, any custom settings (redact API keys!) -->
+
+```yaml
+ROUTING_MODE:
+PORT:
+# Do NOT paste your API keys here
+```

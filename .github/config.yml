@@ -1,0 +1,5 @@
+## 🔐 Config for `!` mentions
+
+1. 🐛 **Bug Report**: Shows ".github/ISSUE_TEMPLATE/bug_report.yml" for bugs.
+2. ✨ **Feature Request**: Shows ".github/ISSUE_TEMPLATE/feature_request.yml" for features.
+3. 🔒 Security Report: Use [SECURITY.md](SECURITY.md) — do NOT open a public issue.

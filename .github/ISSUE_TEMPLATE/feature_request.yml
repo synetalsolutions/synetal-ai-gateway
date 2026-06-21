@@ -1,0 +1,23 @@
+---
+name: ✨ Feature Request
+about: Suggest a new feature or enhancement
+title: "[FEATURE] "
+labels: enhancement, needs-triage
+assignees: ''
+---
+
+## 💡 Problem
+<!-- What problem does this feature solve? -->
+
+## 🚀 Proposed Solution
+<!-- Describe the feature you'd like to see. -->
+
+## 🔄 Alternatives Considered
+<!-- Have you considered any alternatives? -->
+
+## 📎 Additional Context
+<!-- Mockups, links, references, etc. -->
+
+## ✅ Checklist
+- [ ] I've searched existing issues to avoid duplicates
+- [ ] This fits the project's scope (AI gateway / proxy)
