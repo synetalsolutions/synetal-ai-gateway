@@ -24,3 +24,6 @@ Thumbs.db
 
 # Temp
 /tmp/
+
+# Private notes — not for public repo
+PRODUCTION_NOTES.md
